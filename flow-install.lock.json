@@ -1,0 +1,69 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-03-24T13:19:43.817Z",
+  "project": "jarvis-orchestrator",
+  "monorepo": null,
+  "apps": [],
+  "gitOrg": "github.com:Flow-Research",
+  "components": {
+    "skills": true,
+    "claude": true,
+    "opencode": true,
+    "scripts": true,
+    "context": true,
+    "memory": true,
+    "agentsMd": true
+  },
+  "flowCoreSkills": [
+    "api-integration-codegen",
+    "brainstorm",
+    "browser-integration-codegen",
+    "browser-qa",
+    "build-e2e",
+    "ci-fix",
+    "ci-logs",
+    "ci-rerun",
+    "ci-watch",
+    "code-review",
+    "community-skills-install",
+    "context-sync",
+    "cto",
+    "dev-container",
+    "engineer",
+    "git-commit",
+    "github-issue-create",
+    "issue-flow",
+    "jarvis",
+    "local-run",
+    "mvp-tech-spec",
+    "prd",
+    "prd-spec-review",
+    "qa",
+    "semver",
+    "skill-create",
+    "skill-publish",
+    "skill-validate",
+    "spec-to-regression",
+    "tech-spec",
+    "tech-spec-review",
+    "test-quality-validator",
+    "tmux-agent-launcher"
+  ],
+  "communitySkills": {
+    "mode": "none",
+    "expected": [],
+    "strict": false
+  },
+  "contextAgents": {
+    "version": "1.0.0",
+    "templateHash": "0123ff2103cdf082eedb611d28d2e8f3777a1a3fcd78054d7784339dee4c6ca8",
+    "status": "created",
+    "path": ".jarvis/context/AGENTS.md"
+  },
+  "installPaths": {
+    "agentsFile": "AGENTS.md",
+    "contextDir": ".jarvis/context",
+    "skillsDir": ".agents/skills",
+    "scriptsDir": "scripts/flow"
+  }
+}
