@@ -1,0 +1,74 @@
+[
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.06,
+    "timestamp": "2026-03-28T14:19:00.720Z",
+    "tx_hash": "0x0a8442fc2df4f4638d3000fb375f57d26fb2949043990d802c39cb253ff6082c",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.06,
+    "timestamp": "2026-03-28T14:19:08.793Z",
+    "tx_hash": "0x184f323a774efe3c36579add6549b8ca02cb3e7d8b23db86ec0e2db2e1f02a53",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.06,
+    "timestamp": "2026-03-28T14:19:23.780Z",
+    "tx_hash": "0x5c989960b0b393d4f090937cb1af198f51712eb86aa2fff4b4fa9545513c24b9",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.09,
+    "timestamp": "2026-03-28T14:34:35.350Z",
+    "tx_hash": "0xba56db125aa07ee5076979b6c296d95ecfe8a376fb4688c42944726a008f992c",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.01,
+    "timestamp": "2026-03-28T14:59:01.005Z",
+    "tx_hash": "0x579835fc12e113f676f2414ca519babaead9d20a8c71741fea5f86fab8dbf0f4",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.01,
+    "timestamp": "2026-03-28T14:59:09.976Z",
+    "tx_hash": "0xf3115413d775489ed14c0ff2d452d861e1ca61b76aadc8d161e8bd553b42d7a6",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 16.01,
+    "timestamp": "2026-03-28T14:59:21.047Z",
+    "tx_hash": "0x5a40965a3415f8b0bc3ae5119546a511c0bd957deb0004b91771a5378937c56e",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 15.99,
+    "timestamp": "2026-03-28T14:59:47.607Z",
+    "tx_hash": "0x419b728d10cc019ca01ae8ff263c7e24b7f3a77abd61358e8f60b4d2b39ea0a2",
+    "hotkey": "my_hotkey"
+  },
+  {
+    "netuid": 13,
+    "tao_spent": 0.05,
+    "usd_equiv": 15.99,
+    "timestamp": "2026-03-28T14:59:55.587Z",
+    "tx_hash": "0x63ffd238c95d4f6d60c3a81350aaaae177da121da3b0e69f5330c5bda05b4b0a",
+    "hotkey": "my_hotkey"
+  }
+]
