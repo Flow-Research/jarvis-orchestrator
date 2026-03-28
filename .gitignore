@@ -127,6 +127,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+btcli_venev
 
 # Spyder project settings
 .spyderproject
