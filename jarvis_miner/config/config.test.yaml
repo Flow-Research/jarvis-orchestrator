@@ -1,0 +1,61 @@
+# Jarvis Miner — R-01 Registration Price Monitor Config (TESTNET)
+#
+# USAGE:
+#   jarvis -c config/config.test.yaml watch
+#   jarvis -c config/config.test.yaml price
+#
+# Testnet burn costs are very low (~0.0005 TAO), so thresholds
+# are set low. Short poll intervals for quick testing feedback.
+
+global:
+  subtensor_network: test
+  price_source: sdk
+  data_dir: data/testnet
+  log_level: DEBUG
+  trend_window: 6
+  alert_cooldown_seconds: 120
+  discord_username: Jarvis Miner (Testnet)
+
+  alerts:
+    channel: both
+    discord:
+      webhook_url: "${DISCORD_WEBHOOK}"
+    telegram:
+      bot_token: "${TELEGRAM_BOT_TOKEN}"
+      chat_id: "${TELEGRAM_USER_ID}"
+
+subnets:
+  - netuid: 1
+    nickname: "Apex"
+    price_threshold_tao: 0.01
+    poll_interval_seconds: 60
+    min_poll_interval_seconds: 30
+    enabled: true
+
+  - netuid: 2
+    nickname: "Omron"
+    price_threshold_tao: 0.01
+    poll_interval_seconds: 60
+    min_poll_interval_seconds: 30
+    enabled: true
+
+  - netuid: 3
+    nickname: "Templar"
+    price_threshold_tao: 0.01
+    poll_interval_seconds: 60
+    min_poll_interval_seconds: 30
+    enabled: true
+
+  - netuid: 4
+    nickname: "Targon"
+    price_threshold_tao: 0.01
+    poll_interval_seconds: 60
+    min_poll_interval_seconds: 30
+    enabled: true
+
+  - netuid: 5
+    nickname: "Kaito"
+    price_threshold_tao: 0.01
+    poll_interval_seconds: 60
+    min_poll_interval_seconds: 30
+    enabled: true
