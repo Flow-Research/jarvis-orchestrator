@@ -1,4 +1,4 @@
-"""CLI interface for the Jarvis Miner Registration Price Monitor."""
+"""CLI interface for the Jarvis Miner CLI."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ console = Console()
 
 
 @click.group()
-@click.version_option(version="1.0.0", prog_name="jarvis")
+@click.version_option(version="1.0.0", prog_name="jarvis-miner")
 @click.option(
     "-c",
     "--config",
@@ -30,10 +30,10 @@ console = Console()
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging.")
 @click.pass_context
 def cli(ctx: click.Context, config: str | None, verbose: bool) -> None:
-    """Jarvis Miner \u2014 Registration Price Monitor (R-01)
+    """Jarvis Miner — Monitor, Auto-Register & Deregister Alerts
 
-    Monitor subnet registration costs, get alerts when prices
-    are favorable, and track price trends in real time.
+    Monitor subnet registration prices, auto-register when favorable,
+    and alert when your hotkeys get deregistered.
     """
     ctx.ensure_object(dict)
     log_level = logging.DEBUG if verbose else logging.INFO
@@ -58,13 +58,13 @@ def cli(ctx: click.Context, config: str | None, verbose: bool) -> None:
     ctx.obj["config_path"] = config_path
 
 
-# ── watch ────────────────────────────────────────────────────────────────
+# ── monitor ────────────────────────────────────────────────────────────────
 
 
 @cli.command()
 @click.pass_context
-def watch(ctx: click.Context) -> None:
-    """Start the live price monitor with auto-registration and deregister alerts."""
+def monitor(ctx: click.Context) -> None:
+    """Start the monitor with auto-registration and deregister alerts."""
     config_path = ctx.obj["config_path"]
     try:
         global_cfg, subnets = load_config(config_path)
@@ -92,7 +92,7 @@ def watch(ctx: click.Context) -> None:
         channels.append(", ".join(ch) if ch else "none")
 
     lines = [
-        "[bold green]Jarvis Miner \u2014 R-01 Price Monitor[/bold green]",
+        "[bold green]Jarvis Miner[/bold green]",
         f"Network: {global_cfg.subtensor_network}  |  Source: {global_cfg.price_source}",
         f"Subnets: {len(enabled)}  |  Data dir: {global_cfg.data_dir}",
         f"Alerts: {', '.join(set(channels)) or 'none configured'}",
@@ -556,12 +556,12 @@ def validate(ctx: click.Context, check_webhooks: bool) -> None:
                 console.print(f"  SN {subnet.netuid} {channel}: {icon}")
 
 
-# ── config-show ──────────────────────────────────────────────────────────
+# ── config ────────────────────────────────────────────────────────────────
 
 
 @cli.command()
 @click.pass_context
-def config_show(ctx: click.Context) -> None:
+def config(ctx: click.Context) -> None:
     """Show the current configuration."""
     config_path = ctx.obj["config_path"]
     try:

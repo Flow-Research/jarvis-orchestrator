@@ -1,4 +1,4 @@
-"""Data models for the Jarvis Miner Registration Price Monitor."""
+"""Data models for the Jarvis Miner CLI."""
 
 from __future__ import annotations
 
@@ -484,7 +484,7 @@ class AlertEvent:
             "color": self.color,
             "fields": fields,
             "timestamp": self.timestamp.isoformat(),
-            "footer": {"text": "Jarvis Miner \u2014 R-01 Price Monitor"},
+            "footer": {"text": "Jarvis Miner"},
         }
 
     def to_telegram_text(self) -> str:

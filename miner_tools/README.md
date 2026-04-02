@@ -1,70 +1,72 @@
-# Jarvis Miner — Registration Price Monitor
+# Jarvis Miner — Complete Monitoring Suite
 
-A production-grade CLI tool for monitoring Bittensor subnet registration burn costs. It tracks prices across multiple subnets, detects price floors, sends alerts to Discord/Telegram, and supports automated registration when prices drop below your threshold.
+A production-grade CLI tool that does 3 things in one:
 
-## Why This Tool?
-
-Registering on Bittensor subnets requires burning TAO (the native token). The cost fluctuates constantly based on demand — sometimes it's 0.3 TAO, other times it spikes to 2+ TAO. 
-
-**The problem:** Manually watching prices is impossible. Prices can spike or drop at any moment, and waiting for the right price means constantly checking.
-
-**The solution:** Jarvis automatically monitors prices 24/7, alerts you when prices drop, and can even auto-register when the price hits your target.
-
-## What It Does
+1. **Monitor** — Tracks Bittensor subnet registration prices 24/7
+2. **Auto-Register** — Automatically registers when price drops below your threshold
+3. **Deregister Alerts** — Monitors your hotkeys and alerts you if they get deregistered
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    BITTENSOR BLOCKCHAIN                        │
-│  Subnet 6, 8, 9, 13, 18, 28, 37, 41, 50                      │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ "What's the burn cost?"
-                          ▼
+│                    BITTENSOR NETWORK                            │
+│              Subnet 6, 8, 9, 13, 18, 28, 37, 41, 50           │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    JARVIS MONITOR                              │
+│                    JARVIS MINER                                │
 │                                                                 │
-│  ✓ Polls prices every 60-300 seconds                           │
-│  ✓ Tracks price history & trends                               │
-│  ✓ Detects price floors (best entry points)                   │
-│  ✓ Sends Discord/Telegram alerts                               │
-│  ✓ Auto-registers when price ≤ threshold                      │
-│  ✓ Alerts if your miner gets deregistered                      │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │
-        ┌─────────────────┴─────────────────┐
-        ▼                                   ▼
-   YOU GET ALERT                    AUTO-REGISTRATION
-   → decide to register              → happens automatically
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐   │
+│  │   PRICE     │  │    AUTO     │  │     DEREGISTER      │   │
+│  │  MONITOR    │  │  REGISTER   │  │      MONITOR         │   │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘   │
+│                                                                 │
+│  • Adaptive polling (60-300s)                                   │
+│  • Floor detection (best entry points)                         │
+│  • Discord/Telegram alerts                                      │
+│  • Auto-register when price ≤ threshold                        │
+│  • Alerts when hotkeys get deregistered                         │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+    PRICE ALERTS        AUTO-REGISTER      DEREGISTER ALERTS
+    (when favorable)    (when triggered)   (if hotkey removed)
+```
+
+## Installation
+
+```bash
+git clone https://github.com/yourorg/jarvis-orchestrator.git
+cd jarvis-orchestrator
+uv pip install -e .
 ```
 
 ## Quick Start
 
-### 1. Install
+### Step 1: Create Wallet (if needed)
 
 ```bash
-# Clone the repo
-git clone https://github.com/yourorg/jarvis-orchestrator.git
-cd jarvis-orchestrator
+# Create coldkey (your TAO address)
+btcli wallet new_coldkey --wallet.name jarvis --wallet.path ~/.bittensor/wallets
 
-# Install dependencies
-uv sync --extra dev
+# Create hotkey (your miner identity)
+btcli wallet new_hotkey --wallet.name jarvis --wallet.hotkey miner1 --wallet.path ~/.bittensor/wallets
 
-# Install bittensor SDK (required for chain interaction)
-uv pip install bittensor
+# Fund your coldkey with TAO
 ```
 
-### 2. Create a Wallet (if you don't have one)
+### Step 2: Set up Alerts (optional)
+
+Create `.env` file:
 
 ```bash
-# Create a coldkey (your TAO address)
-btcli wallet new_coldkey --wallet.name jarvis
-
-# Create a hotkey (your miner identity)
-btcli wallet new_hotkey --wallet.name jarvis --wallet.hotkey miner1
-
-# Fund your coldkey with TAO (get from exchange)
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/XXXXX/XXXXX"
+TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+TELEGRAM_USER_ID="123456789"
 ```
 
-### 3. Configure
+### Step 3: Configure
 
 Create a `.env` file in the project root:
 
@@ -81,12 +83,13 @@ Edit `miner_tools/config/config.yaml`:
 
 ```yaml
 global:
-  subtensor_network: finney        # mainnet (use "test" for testnet)
+  subtensor_network: finney
   data_dir: data
   
   wallet:
-    name: jarvis                   # your wallet name
-    hotkey: miner1                # your hotkey name
+    name: jarvis
+    hotkey: miner1
+    path: ~/.bittensor/wallets
 
   alerts:
     channel: both
@@ -97,27 +100,30 @@ global:
       chat_id: "${TELEGRAM_USER_ID}"
 
 subnets:
-  # Example: Monitor SN13, alert when price ≤ 0.8 TAO
-  # Auto-register when price drops to 0.8 TAO
   - netuid: 13
     nickname: "Data Universe"
-    price_threshold_tao: 0.8
-    max_spend_tao: 1.5            # never pay more than 1.5 TAO
-    auto_register: true           # enable auto-registration
+    price_threshold_tao: 0.8      # alert when price ≤ 0.8 TAO
+    max_spend_tao: 1.5             # never pay more than this
     enabled: true
+    # auto_register: true          # uncomment to auto-register
+    # deregister:                  # uncomment to monitor hotkeys
+    #   - hotkey: "5GrwvaEF..."
+    #     label: "MyMiner"
 ```
 
-### 4. Verify & Run
+### Step 4: Run
 
 ```bash
-# Check your wallet exists and has balance
-jarvis wallet
+source .venv/bin/activate
+
+# Check wallet
+jarvis-miner wallet
 
 # Validate config
-jarvis validate
+jarvis-miner validate
 
-# Check current prices (one-shot)
-jarvis price
+# Check prices (one-shot)
+jarvis-miner price
 
 # Start monitoring (runs 24/7)
 jarvis-miner watch
@@ -125,7 +131,11 @@ jarvis-miner watch
 
 ## How It Works
 
-### The Monitoring Loop
+### When you run `jarvis-miner monitor`:
+
+Two things run in parallel:
+
+**1. Price Monitor** — polls registration costs
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -169,28 +179,51 @@ jarvis-miner watch
                               (wait for next poll cycle)
 ```
 
-### Adaptive Polling
-
-The monitor intelligently adjusts how often it checks prices:
-
-| Price | Poll Interval | Why |
-|-------|---------------|-----|
-| Far above threshold (2.0x) | 300s (5 min) | No urgency |
-| Getting close (1.5x) | 60s (1 min) | Watch closely |
-| Below threshold | 60s (1 min) | Alert mode |
-
-### Floor Detection
-
-Jarvis detects when prices bottom out — often the best time to register:
+**2. Deregister Monitor** — checks hotkey status
 
 ```
-12:00  Price: 0.80 ──┐
-12:05  Price: 0.72   │ declining
-12:10  Price: 0.55   │
-12:15  Price: 0.48   │ ← FLOOR DETECTED!
-12:20  Price: 0.50   │ rising
-12:25  Price: 0.52 ──┘
-         💎 FLOOR ALERT: "Price hit 0.48 TAO, now rising +8%"
+Every 120 seconds → fetch metagraph → compare hotkeys → alert if missing
+```
+
+### Auto-Registration Flow
+
+```
+Price drops below threshold
+        │
+        ▼
+Send alert (Discord/Telegram)
+        │
+        ▼
+auto_register enabled?
+        │
+   ┌────┴────┐
+   │         │
+  Yes        No
+   │         │
+   ▼         ▼
+Burn TAO    Wait
+to register
+```
+
+### Deregister Monitoring Flow
+
+```
+Every 120 seconds
+        │
+        ▼
+Get hotkeys from metagraph
+        │
+        ▼
+Compare with configured hotkeys
+        │
+   ┌────┴────┐
+   │         │
+ Registered  Deregistered
+   │         │
+   ▼         ▼
+  No alert   Send alert
+             "Your hotkey was
+              removed from SN6!"
 ```
 
 ## CLI Commands
@@ -209,8 +242,19 @@ Jarvis detects when prices bottom out — often the best time to register:
 | `jarvis validate --check-webhooks` | Test webhook connectivity |
 | `jarvis config-show` | Display current configuration |
 | `jarvis -v watch` | Run with debug logging |
+| `jarvis-miner monitor` | Start everything (price monitor + auto-register + deregister) |
+| `jarvis-miner price` | Check current prices for all subnets |
+| `jarvis-miner price 13` | Check price for subnet 13 only |
+| `jarvis-miner status` | Show price history, trends, floor events |
+| `jarvis-miner info` | Show subnet metadata from chain |
+| `jarvis-miner register 13` | Manually register on subnet 13 |
+| `jarvis-miner deregister-check` | Check if your hotkeys are still registered |
+| `jarvis-miner wallet` | Show wallet balance and registrations |
+| `jarvis-miner validate` | Validate config file |
+| `jarvis-miner validate --check-webhooks` | Test webhook connectivity |
+| `jarvis-miner config` | Show current configuration |
 
-### Global Options
+### Options
 
 | Option | Description |
 |--------|-------------|
@@ -218,38 +262,38 @@ Jarvis detects when prices bottom out — often the best time to register:
 | `-v, --verbose` | Enable debug logging |
 | `--version` | Show version |
 
-## Configuration
+## Configuration Options
 
-### Per-Subnet Options
+### Global Settings
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `netuid` | (required) | Subnet ID (1-255) |
-| `nickname` | `"Subnet {netuid}"` | Friendly name for alerts |
-| `price_threshold_tao` | `0.5` | Alert when price ≤ this |
-| `max_spend_tao` | none | Hard cap — never register above this |
-| `poll_interval_seconds` | `300` | Normal polling interval |
-| `min_poll_interval_seconds` | `60` | Fast polling when near threshold |
-| `adaptive_polling` | `true` | Auto-adjust poll speed |
-| `floor_detection` | `true` | Detect price floors |
-| `floor_window` | `6` | Readings to detect floor |
-| `auto_register` | `false` | Auto-register when price ≤ threshold |
-| `deregister` | `[]` | Hotkeys to monitor for deregistration |
-| `enabled` | `true` | Enable/disable this subnet |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `subtensor_network` | finney | "finney" (mainnet) or "test" (testnet) |
+| `price_source` | auto | "sdk", "api", or "auto" |
+| `data_dir` | data | Where to store state |
+| `log_level` | INFO | Logging level |
+| `alert_cooldown_seconds` | 600 | Seconds between alerts |
+| `trend_window` | 6 | Readings for trend calculation |
 
-### Environment Variables
+### Per-Subnet Settings
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DISCORD_WEBHOOK` | * | Discord webhook URL |
-| `TELEGRAM_BOT_TOKEN` | * | Telegram bot token |
-| `TELEGRAM_USER_ID` | * | Your Telegram chat ID |
-| `DISCORD_ROLE` | No | Role to ping on Discord |
-| `JARVIS_CONFIG` | No | Custom config path |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `netuid` | (required) | Subnet ID |
+| `nickname` | Subnet {netuid} | Friendly name |
+| `price_threshold_tao` | 0.5 | Alert when price ≤ this |
+| `max_spend_tao` | none | Never register above this |
+| `poll_interval_seconds` | 300 | Normal polling interval |
+| `min_poll_interval_seconds` | 60 | Fast polling near threshold |
+| `adaptive_polling` | true | Auto-adjust poll speed |
+| `floor_detection` | true | Detect price floors |
+| `auto_register` | false | Auto-register when price ≤ threshold |
+| `deregister` | [] | Hotkeys to monitor |
+| `enabled` | true | Enable/disable |
 
-*Unless `alerts.channel: none`
+## Examples
 
-## Testnet
+### Example 1: Just Monitoring (no auto-register)
 
 Before using mainnet, test on testnet:
 
@@ -258,35 +302,78 @@ Before using mainnet, test on testnet:
 jarvis-miner -c miner_tools/config/config.test.yaml watch
 ```
 
-Testnet features:
-- `subtensor_network: test` — connects to Bittensor testnet
-- Low thresholds (~0.01 TAO) — testnet costs are minimal
-- Fast polling (60s) — quick feedback
+### Example 2: Auto-Registration Enabled
+
+```yaml
+subnets:
+  - netuid: 13
+    price_threshold_tao: 0.8
+    max_spend_tao: 1.5
+    auto_register: true
+    enabled: true
+```
+
+### Example 3: Deregister Monitoring
+
+```yaml
+subnets:
+  - netuid: 6
+    price_threshold_tao: 0.5
+    enabled: true
+    deregister:
+      - hotkey: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+        label: "MyMiner1"
+      - hotkey: "5FHneL4uZ7T2..."
+        label: "MyMiner2"
+```
+
+### Example 4: Everything Enabled
+
+```yaml
+subnets:
+  - netuid: 13
+    price_threshold_tao: 0.8
+    max_spend_tao: 1.5
+    auto_register: true
+    enabled: true
+    deregister:
+      - hotkey: "5GrwvaEF..."
+        label: "MyMiner"
+```
 
 ## Alert Levels
 
-| Level | Emoji | Condition | Action |
-|-------|-------|-----------|--------|
-| EXCELLENT | 🟢 | Price ≤ 50% of threshold | Register now! |
-| GOOD | 🟢 | Price ≤ threshold | Safe to register |
-| INFO | 🔵 | Price ≤ 1.5x threshold | Getting close |
-| WARNING | 🟠 | Price ≤ 3x threshold | Too expensive |
-| CRITICAL | 🔴 | Price > 3x threshold | Don't register |
-| FLOOR | 💎 | Price floor detected | Best window! |
+| Level | When |
+|-------|------|
+| EXCELLENT | Price ≤ 50% of threshold |
+| GOOD | Price ≤ threshold |
+| INFO | Price ≤ 1.5x threshold |
+| WARNING | Price ≤ 3x threshold |
+| CRITICAL | Price > 3x threshold |
+| FLOOR | Price floor detected |
 
 ## Available Subnets
 
-| SN | Name | Type | Typical Cost |
-|----|------|------|--------------|
-| 6 | Numinous | Forecasting | 0.3-1.0 TAO |
-| 8 | Vanta | Trading | 0.2-0.8 TAO |
-| 9 | Pretraining | LLM pretraining | 0.5-2.0 TAO |
-| 13 | Data Universe | Data scraping | 0.4-1.5 TAO |
-| 18 | Zeus | Prediction | 0.1-0.5 TAO |
-| 28 | S&P Oracle | Financial | 0.2-0.8 TAO |
-| 37 | Finetuning | Model finetuning | 0.4-1.5 TAO |
-| 41 | Sports Tensor | Sports prediction | 0.1-0.4 TAO |
-| 50 | Synth | Synthetic data | 0.1-0.5 TAO |
+| SN | Name | Type |
+|----|------|------|
+| 6 | Numinous | Forecasting |
+| 8 | Vanta | Trading |
+| 9 | Pretraining | LLM pretraining |
+| 13 | Data Universe | Data scraping |
+| 18 | Zeus | Prediction |
+| 28 | S&P Oracle | Financial |
+| 37 | Finetuning | Model finetuning |
+| 41 | Sports Tensor | Sports |
+| 50 | Synth | Synthetic data |
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Keyfile not found" | Create wallet with btcli |
+| "No price history" | Run `jarvis-miner monitor` first |
+| "Webhook not working" | Run `jarvis-miner validate --check-webhooks` |
+| Need debug logs | `jarvis-miner -v monitor` |
 
 ## Project Structure
 

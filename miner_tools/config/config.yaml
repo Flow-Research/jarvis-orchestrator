@@ -1,4 +1,4 @@
-# Jarvis Miner — R-01 Registration Price Monitor Config
+# Jarvis Miner — Registration Price Monitor Config
 #
 # ══════════════════════════════════════════════════════════════════════════
 # FULL SETUP (do these steps in order)
@@ -28,9 +28,9 @@
 #
 # STEP 5: Verify everything is ready
 #
-#   jarvis wallet          # check wallet exists, balance, registrations
-#   jarvis validate        # validate config
-#   jarvis price           # check current prices
+#   jarvis-miner wallet          # check wallet exists, balance, registrations
+#   jarvis-miner validate        # validate config
+#   jarvis-miner price           # check current prices
 #
 # STEP 6: Run the monitor
 #
@@ -82,10 +82,10 @@ subnets:
     price_threshold_tao: 0.5
     max_spend_tao: 1.0
     enabled: true
-    # auto_register: true
-    # deregister:
+    # auto_register: true     # uncomment to enable auto-registration
+    # deregister:             # uncomment to monitor hotkeys for deregistration
     #   - hotkey: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-    #     label: "Miner-1"
+    #     label: "MyMiner"
 
   - netuid: 8
     nickname: "Vanta"

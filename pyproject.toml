@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "jarvis-miner"
 version = "1.0.0"
-description = "Jarvis Miner Service — Registration Price Monitor (R-01)"
+description = "Jarvis Miner Service — Registration Price Monitor"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1",

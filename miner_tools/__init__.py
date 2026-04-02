@@ -1,1 +1,1 @@
-"""Jarvis Miner Service — Registration Price Monitor (R-01)."""
+"""Jarvis Miner — Registration Price Monitor."""
