@@ -7,19 +7,61 @@ import bittensor as bt
 from typing import List
 
 
+class MockKeypair:
+    def __init__(self):
+        self.ss58_address = "5HEV7y3x8888888888888888888888888888888888888888"
+        self.public_key = b"\x00" * 32
+        self.private_key = b"\x00" * 32
+        
+    def sign(self, data):
+        return b"\x00" * 64
+        
+    def hex(self):
+        return self.public_key.hex()
+
+
+class MockWallet:
+    def __init__(self, name="mock_wallet", hotkey="mock_hotkey", path=None, config=None):
+        self.name = name
+        self.hotkey_str = hotkey
+        self.path = path
+        self.config = config
+        
+        self.hotkey = MockKeypair()
+        self.coldkey = MockKeypair()
+        self.coldkeypub = MockKeypair()
+        
+    def get_coldkey(self):
+        return self.coldkey
+        
+    def get_hotkey(self):
+        return self.hotkey
+
+    def create(self):
+        pass
+
+    def recreate(self):
+        pass
+
+    def set_outdir(self):
+        pass
+
+
 class MockSubtensor(bt.MockSubtensor):
     def __init__(self, netuid, n=16, wallet=None, network="mock"):
         super().__init__(network=network)
 
-        if not self.subnet_exists(netuid):
+        try:
             self.create_subnet(netuid)
+        except Exception:
+            pass
 
         # Register ourself (the validator) as a neuron at uid=0
         if wallet is not None:
             self.force_register_neuron(
                 netuid=netuid,
-                hotkey=wallet.hotkey.ss58_address,
-                coldkey=wallet.coldkey.ss58_address,
+                hotkey_ss58=wallet.hotkey.ss58_address,
+                coldkey_ss58=wallet.coldkey.ss58_address,
                 balance=100000,
                 stake=100000,
             )
@@ -28,14 +70,14 @@ class MockSubtensor(bt.MockSubtensor):
         for i in range(1, n + 1):
             self.force_register_neuron(
                 netuid=netuid,
-                hotkey=f"miner-hotkey-{i}",
-                coldkey="mock-coldkey",
+                hotkey_ss58=f"miner-hotkey-{i}",
+                coldkey_ss58="mock-coldkey",
                 balance=100000,
                 stake=100000,
             )
 
 
-class MockMetagraph(bt.metagraph):
+class MockMetagraph(bt.Metagraph):
     def __init__(self, netuid=1, network="mock", subtensor=None):
         super().__init__(netuid=netuid, network=network, sync=False)
 
@@ -51,7 +93,7 @@ class MockMetagraph(bt.metagraph):
         bt.logging.info(f"Axons: {self.axons}")
 
 
-class MockDendrite(bt.dendrite):
+class MockDendrite(bt.Dendrite):
     """
     Replaces a real bittensor network request with a mock request that just returns some static response for all axons that are passed and adds some random delay.
     """
@@ -61,7 +103,7 @@ class MockDendrite(bt.dendrite):
 
     async def forward(
         self,
-        axons: List[bt.axon],
+        axons: List[bt.Axon],
         synapse: bt.Synapse = bt.Synapse(),
         timeout: float = 12,
         deserialize: bool = True,
