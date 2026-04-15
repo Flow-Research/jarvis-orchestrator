@@ -26,7 +26,10 @@ dev = [
 ]
 
 [project.scripts]
-jarvis = "jarvis_miner.cli:cli"
+jarvis-miner = "miner_tools.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["miner_tools"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

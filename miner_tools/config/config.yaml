@@ -34,7 +34,7 @@
 #
 # STEP 6: Run the monitor
 #
-#   jarvis watch           # starts monitoring + auto-register + deregister alerts
+#   jarvis-miner watch           # starts monitoring + auto-register + deregister alerts
 #
 # ══════════════════════════════════════════════════════════════════════════
 
