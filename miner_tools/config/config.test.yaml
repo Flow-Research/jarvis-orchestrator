@@ -1,8 +1,8 @@
 # Jarvis Miner — R-01 Registration Price Monitor Config (TESTNET)
 #
 # USAGE:
-#   jarvis -c config/config.test.yaml watch
-#   jarvis -c config/config.test.yaml price
+#   jarvis-miner -c config/config.test.yaml watch
+#   jarvis-miner -c config/config.test.yaml price
 #
 # Testnet burn costs are very low (~0.0005 TAO), so thresholds
 # are set low. Short poll intervals for quick testing feedback.

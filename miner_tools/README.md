@@ -77,7 +77,7 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 TELEGRAM_USER_ID=123456789
 ```
 
-Edit `jarvis_miner/config/config.yaml`:
+Edit `miner_tools/config/config.yaml`:
 
 ```yaml
 global:
@@ -120,7 +120,7 @@ jarvis validate
 jarvis price
 
 # Start monitoring (runs 24/7)
-jarvis watch
+jarvis-miner watch
 ```
 
 ## How It Works
@@ -129,7 +129,7 @@ jarvis watch
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    jarvis watch                             │
+│                    jarvis-miner watch                             │
 │                  (R-01 Price Monitor)                        │
 └────────────────────────────┬────────────────────────────────┘
                              │
@@ -197,7 +197,7 @@ Jarvis detects when prices bottom out — often the best time to register:
 
 | Command | Description |
 |---------|-------------|
-| `jarvis watch` | Start the monitor daemon (runs until Ctrl+C) |
+| `jarvis-miner watch` | Start the monitor daemon (runs until Ctrl+C) |
 | `jarvis price` | One-shot price check for all subnets |
 | `jarvis price 13` | Check price for subnet 13 only |
 | `jarvis status` | Show price history, trends, floor events |
@@ -214,7 +214,7 @@ Jarvis detects when prices bottom out — often the best time to register:
 
 | Option | Description |
 |--------|-------------|
-| `-c, --config PATH` | Config file (default: `jarvis_miner/config/config.yaml`) |
+| `-c, --config PATH` | Config file (default: `miner_tools/config/config.yaml`) |
 | `-v, --verbose` | Enable debug logging |
 | `--version` | Show version |
 
@@ -255,7 +255,7 @@ Before using mainnet, test on testnet:
 
 ```bash
 # Run on testnet
-jarvis -c jarvis_miner/config/config.test.yaml watch
+jarvis-miner -c miner_tools/config/config.test.yaml watch
 ```
 
 Testnet features:
@@ -292,7 +292,7 @@ Testnet features:
 
 ```
 jarvis-orchestrator/
-├── jarvis_miner/
+├── miner_tools/
 │   ├── __init__.py
 │   ├── cli.py              # CLI commands
 │   ├── config/
@@ -316,15 +316,15 @@ jarvis-orchestrator/
 uv run pytest tests/ -v
 
 # With coverage
-uv run pytest tests/ --cov=jarvis_miner --cov-report=term-missing
+uv run pytest tests/ --cov=miner_tools --cov-report=term-missing
 
 # Lint check
-uv run ruff check jarvis_miner/
+uv run ruff check miner_tools/
 ```
 
 ## Threshold Strategy
 
-**Week 1: Discovery** — Run `jarvis watch` and observe. Note the price ranges.
+**Week 1: Discovery** — Run `jarvis-miner watch` and observe. Note the price ranges.
 
 **Week 2: Refine** — Adjust thresholds based on observed data:
 ```yaml
@@ -342,7 +342,7 @@ price_threshold_tao: 0.8   # 80% of your 7-day average
 → Run `uv pip install bittensor`
 
 **"No price history found"**
-→ Run `jarvis watch` first to collect data
+→ Run `jarvis-miner watch` first to collect data
 
 **"Webhook not working"**
 → Run `jarvis validate --check-webhooks` to test

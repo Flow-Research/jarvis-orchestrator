@@ -25,7 +25,7 @@ console = Console()
     "--config",
     type=click.Path(),
     default=None,
-    help="Path to config file (default: jarvis_miner/config/config.yaml or $JARVIS_CONFIG)",
+    help="Path to config file (default: miner_tools/config/config.yaml or $JARVIS_CONFIG)",
 )
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug logging.")
 @click.pass_context
@@ -52,7 +52,7 @@ def cli(ctx: click.Context, config: str | None, verbose: bool) -> None:
     )
     # Ensure our loggers keep INFO level even after bittensor setup
     logging.getLogger().setLevel(log_level)
-    logging.getLogger("jarvis_miner").setLevel(log_level)
+    logging.getLogger("miner_tools").setLevel(log_level)
 
     config_path = Path(config) if config else default_config_path()
     ctx.obj["config_path"] = config_path
@@ -155,7 +155,7 @@ def price(ctx: click.Context, netuid: int | None) -> None:
                     netuid=netuid,
                     price_threshold_tao=0,
                     alerts=__import__(
-                        "jarvis_miner.models", fromlist=["AlertConfig"]
+                        "miner_tools.models", fromlist=["AlertConfig"]
                     ).AlertConfig(),
                 )
             ]
@@ -244,7 +244,7 @@ def status(ctx: click.Context) -> None:
     state = MonitorState.load(state_path)
 
     if not state.histories:
-        console.print("[dim]No price history found. Run 'jarvis watch' first.[/dim]")
+        console.print("[dim]No price history found. Run 'jarvis-miner watch' first.[/dim]")
         return
 
     table = Table(title="Monitor Status", show_lines=True, expand=True)
