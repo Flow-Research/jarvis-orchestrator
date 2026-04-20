@@ -40,98 +40,60 @@
 
 global:
   subtensor_network: finney
-  price_source: auto
   data_dir: data
-  log_level: INFO
-  max_history_days: 30
-  trend_window: 6
-  alert_cooldown_seconds: 600
-  discord_username: Jarvis Miner
 
-  # ── WALLET ────────────────────────────────────────────────────────
-  # Must match a wallet created with btcli (see setup above)
-  # jarvis wallet — check if this wallet exists and has balance
-  wallet:
-    name: jarvis          # wallet name (--wallet.name when creating)
-    hotkey: miner1        # hotkey name (--wallet.hotkey when creating)
-    path: ~/.bittensor/wallets
-
-  # ── ALERTS ───────────────────────────────────────────────────────
-  alerts:
-    channel: both
-    discord:
-      webhook_url: "${DISCORD_WEBHOOK}"
-    telegram:
-      bot_token: "${TELEGRAM_BOT_TOKEN}"
-      chat_id: "${TELEGRAM_USER_ID}"
-
-# ── SUBNETS ─────────────────────────────────────────────────────────
-#
-# Per-subnet options:
-#   price_threshold_tao  — alert when price drops to or below this
-#   max_spend_tao        — max TAO to spend (safety limit)
-#   auto_register: true  — automatically register when price <= threshold
-#                          (requires wallet with TAO balance)
-#   deregister:          — monitor hotkeys for deregistration
-#     - hotkey: "5D..."  — SS58 address of the hotkey to watch
-#       label: "Miner-1" — friendly name for alerts
-#
 subnets:
   - netuid: 6
     nickname: "Numinous"
-    price_threshold_tao: 0.5
-    max_spend_tao: 1.0
     enabled: true
-    # auto_register: true     # uncomment to enable auto-registration
-    # deregister:             # uncomment to monitor hotkeys for deregistration
-    #   - hotkey: "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-    #     label: "MyMiner"
-
+    wallet:
+      name: sn6miner
+      hotkey: default
   - netuid: 8
     nickname: "Vanta"
-    price_threshold_tao: 0.4
-    max_spend_tao: 0.8
     enabled: true
-
+    wallet:
+      name: sn8miner
+      hotkey: default
   - netuid: 9
     nickname: "Pretraining"
-    price_threshold_tao: 1.0
-    max_spend_tao: 2.0
     enabled: true
-
+    wallet:
+      name: sn9miner
+      hotkey: default
   - netuid: 13
     nickname: "Data Universe"
-    price_threshold_tao: 0.8
-    max_spend_tao: 1.5
     enabled: true
-
+    wallet:
+      name: sn13miner
+      hotkey: default
   - netuid: 18
     nickname: "Zeus"
-    price_threshold_tao: 0.25
-    max_spend_tao: 0.5
     enabled: true
-
+    wallet:
+      name: sn18miner
+      hotkey: default
   - netuid: 28
     nickname: "S&P Oracle"
-    price_threshold_tao: 0.4
-    max_spend_tao: 0.8
     enabled: true
-
+    wallet:
+      name: sn28miner
+      hotkey: default
   - netuid: 37
     nickname: "Finetuning"
-    price_threshold_tao: 0.8
-    max_spend_tao: 1.5
     enabled: true
-
+    wallet:
+      name: sn37miner
+      hotkey: default
   - netuid: 41
     nickname: "Sports Tensor"
-    price_threshold_tao: 0.2
-    max_spend_tao: 0.4
-    poll_interval_seconds: 600
     enabled: true
-
+    wallet:
+      name: sn41miner
+      hotkey: default
   - netuid: 50
     nickname: "Synth"
-    price_threshold_tao: 0.25
-    max_spend_tao: 0.5
     enabled: true
+    wallet:
+      name: sn50miner
+      hotkey: default

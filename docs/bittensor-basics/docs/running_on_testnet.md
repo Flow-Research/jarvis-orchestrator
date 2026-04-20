@@ -119,7 +119,7 @@ Enter the owner wallet name which gives permissions to the coldkey:
 >> Enter password to unlock key: # Enter your wallet password.
 >> Register subnet? [y/n]: <y/n> # Select yes (y)
 >> ⠇ 📡 Registering subnet...
-✅ Registered subnetwork with netuid: <YOUR_NETUID> # Save this value. For Jarvis SN13 testing against the existing subnet, use 13.
+✅ Registered subnetwork with netuid: 1 # Your subnet netuid will show here, save this for later.
 ```
 
 ## 6. Register keys
@@ -129,34 +129,34 @@ This step registers your subnet validator and subnet miner keys to the subnet, g
 Register your miner key to the subnet:
 
 ```bash
-btcli subnet register --netuid <YOUR_NETUID> --subtensor.network test --wallet.name miner --wallet.hotkey default
+btcli subnet register --netuid 13 --subtensor.network test --wallet.name miner --wallet.hotkey default
 ```
 
 Follow the below prompts:
 
 ```bash
->> Enter netuid [<YOUR_NETUID>] (<YOUR_NETUID>): # Enter your target subnet. For Jarvis SN13 testing, use 13.
+>> Enter netuid [1] (1): # Enter netuid 1 to specify the subnet you just created.
 >> Continue Registration?
   hotkey:     ...
   coldkey:    ...
-  network:    test [y/n]: # Select yes (y)
+  network:    finney [y/n]: # Select yes (y)
 >> ✅ Registered
 ```
 
 Next, register your validator key to the subnet:
 
 ```bash
-btcli subnet register --netuid <YOUR_NETUID> --subtensor.network test --wallet.name validator --wallet.hotkey default
+btcli subnet register --netuid 13 --subtensor.network test --wallet.name validator --wallet.hotkey default
 ```
 
 Follow the prompts:
 
 ```bash
->> Enter netuid [<YOUR_NETUID>] (<YOUR_NETUID>): # Enter your target subnet. For Jarvis SN13 testing, use 13.
+>> Enter netuid [1] (1): # Enter netuid 1 to specify the subnet you just created.
 >> Continue Registration?
   hotkey:     ...
   coldkey:    ...
-  network:    test [y/n]: # Select yes (y)
+  network:    finney [y/n]: # Select yes (y)
 >> ✅ Registered
 ```
 
@@ -173,7 +173,7 @@ btcli wallet overview --wallet.name validator --subtensor.network test
 The above command will display the below:
 
 ```bash
-Subnet: <YOUR_NETUID>                                                                                                                                                                
+Subnet: 1                                                                                                                                                                
 COLDKEY  HOTKEY   UID  ACTIVE  STAKE(τ)     RANK    TRUST  CONSENSUS  INCENTIVE  DIVIDENDS  EMISSION(ρ)   VTRUST  VPERMIT  UPDATED  AXON  HOTKEY_SS58                    
 miner    default  0      True   0.00000  0.00000  0.00000    0.00000    0.00000    0.00000            0  0.00000                14  none  5GTFrsEQfvTsh3WjiEVFeKzFTc2xcf…
 1        1        2            τ0.00000  0.00000  0.00000    0.00000    0.00000    0.00000           ρ0  0.00000                                                         
@@ -189,7 +189,7 @@ btcli wallet overview --wallet.name miner --subtensor.network test
 The above command will display the below:
 
 ```bash
-Subnet: <YOUR_NETUID>                                                                                                                                                                
+Subnet: 1                                                                                                                                                                
 COLDKEY  HOTKEY   UID  ACTIVE  STAKE(τ)     RANK    TRUST  CONSENSUS  INCENTIVE  DIVIDENDS  EMISSION(ρ)   VTRUST  VPERMIT  UPDATED  AXON  HOTKEY_SS58                    
 miner    default  1      True   0.00000  0.00000  0.00000    0.00000    0.00000    0.00000            0  0.00000                14  none  5GTFrsEQfvTsh3WjiEVFeKzFTc2xcf…
 1        1        2            τ0.00000  0.00000  0.00000    0.00000    0.00000    0.00000           ρ0  0.00000                                                         
@@ -201,25 +201,25 @@ miner    default  1      True   0.00000  0.00000  0.00000    0.00000    0.00000 
 Run the subnet miner:
 
 ```bash
-python neurons/miner.py --netuid <YOUR_NETUID> --subtensor.network test --wallet.name miner --wallet.hotkey default --logging.debug
+python neurons/miner.py --netuid 1 --subtensor.network test --wallet.name miner --wallet.hotkey default --logging.debug
 ```
 
 You will see the below terminal output:
 
 ```bash
->> 2023-08-08 16:58:11.223 |       INFO       | Running miner for subnet: <YOUR_NETUID> on network: ws://127.0.0.1:9946 with config: ...
+>> 2023-08-08 16:58:11.223 |       INFO       | Running miner for subnet: 1 on network: ws://127.0.0.1:9946 with config: ...
 ```
 
 Next, run the subnet validator:
 
 ```bash
-python neurons/validator.py --netuid <YOUR_NETUID> --subtensor.network test --wallet.name validator --wallet.hotkey default --logging.debug
+python neurons/validator.py --netuid 1 --subtensor.network test --wallet.name validator --wallet.hotkey default --logging.debug
 ```
 
 You will see the below terminal output:
 
 ```bash
->> 2023-08-08 16:58:11.223 |       INFO       | Running validator for subnet: <YOUR_NETUID> on network: ws://127.0.0.1:9946 with config: ...
+>> 2023-08-08 16:58:11.223 |       INFO       | Running validator for subnet: 1 on network: ws://127.0.0.1:9946 with config: ...
 ```
 
 
