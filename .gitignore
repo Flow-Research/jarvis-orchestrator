@@ -46,7 +46,16 @@ btcli_venev
 
 # Data files (generated at runtime)
 data/
-*.json
+
+# Subnet runtime artifacts (generated when miners run)
+subnets/*/state.json
+subnets/*/listener.log
+subnets/*/logs/
+subnets/*/captures/
+subnets/*/__pycache__/
+
+# Stray binaries
+*.deb
 
 # OS
 .DS_Store

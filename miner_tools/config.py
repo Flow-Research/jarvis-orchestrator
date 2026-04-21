@@ -233,6 +233,6 @@ def default_config_path() -> Path:
     env_path = os.environ.get("JARVIS_CONFIG")
     if env_path:
         return Path(env_path)
-    # Default to config.yaml inside the jarvis_miner package
+    # Default to config.yaml inside the miner_tools package
     package_dir = Path(__file__).parent
     return package_dir / "config" / "config.yaml"

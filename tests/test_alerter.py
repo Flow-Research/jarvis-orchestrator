@@ -4,8 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jarvis_miner.alerter import build_alert_event, write_signal
-from jarvis_miner.models import (
+from miner_tools.alerter import build_alert_event, write_signal
+from miner_tools.models import (
     AlertConfig,
     AlertEvent,
     AlertLevel,
@@ -31,7 +31,7 @@ class TestBuildAlertEvent:
         return SubnetConfig(**defaults)
 
     def _make_reading(self, cost_tao: float):
-        from jarvis_miner.models import PriceReading
+        from miner_tools.models import PriceReading
 
         return PriceReading(
             netuid=13,
@@ -205,7 +205,7 @@ class TestWriteSignal:
 
 class TestAlertEdgeCases:
     def test_zero_threshold(self):
-        from jarvis_miner.models import PriceReading
+        from miner_tools.models import PriceReading
 
         subnet = SubnetConfig(
             netuid=1,
@@ -222,7 +222,7 @@ class TestAlertEdgeCases:
         assert event.level == AlertLevel.CRITICAL
 
     def test_exact_threshold(self):
-        from jarvis_miner.models import PriceReading
+        from miner_tools.models import PriceReading
 
         subnet = SubnetConfig(
             netuid=1,

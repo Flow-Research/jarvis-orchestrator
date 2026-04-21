@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jarvis_miner.models import (
+from miner_tools.models import (
     AlertConfig,
     AlertLevel,
     DiscordConfig,
@@ -12,7 +12,7 @@ from jarvis_miner.models import (
     SubnetConfig,
     Trend,
 )
-from jarvis_miner.monitor import Monitor
+from miner_tools.monitor import Monitor
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -221,7 +221,7 @@ class TestBuildThresholdEvent:
     def test_excellent(self):
         monitor = _make_monitor()
         subnet = monitor.subnets[0]
-        from jarvis_miner.models import PriceReading
+        from miner_tools.models import PriceReading
 
         reading = PriceReading(netuid=13, cost_tao=0.2, timestamp=datetime.now(timezone.utc))
         event = monitor._build_threshold_event(subnet, reading, Trend.STABLE)

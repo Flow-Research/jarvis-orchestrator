@@ -2,7 +2,7 @@
 
 import pytest
 
-from jarvis_miner.models import (
+from miner_tools.models import (
     AlertConfig,
     DiscordConfig,
     GlobalConfig,

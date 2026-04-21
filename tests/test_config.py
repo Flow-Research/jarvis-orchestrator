@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis_miner.config import default_config_path, load_config
+from miner_tools.config import default_config_path, load_config
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -333,9 +333,9 @@ subnets:
 class TestDefaultConfigPath:
     def test_default(self):
         path = default_config_path()
-        # Config is now inside jarvis_miner package
+        # Config is inside the miner_tools package
         assert path.name == "config.yaml"
-        assert "jarvis_miner" in str(path)
+        assert "miner_tools" in str(path)
 
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("JARVIS_CONFIG", "/custom/path.yaml")

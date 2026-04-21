@@ -1,7 +1,7 @@
 """Tests for fetcher — error handling, lazy import."""
 
 
-from jarvis_miner.fetcher import _import_bittensor
+from miner_tools.fetcher import _import_bittensor
 
 
 class TestBittensorImport:

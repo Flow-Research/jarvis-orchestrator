@@ -1,6 +1,6 @@
 """Tests for SN13 validator task decomposition."""
 
-from listener.sn13_decomposition import (
+from subnets.sn13.listener.sn13_decomposition import (
     BucketRequest,
     aggregate_operator_results,
     decompose_bucket_request,

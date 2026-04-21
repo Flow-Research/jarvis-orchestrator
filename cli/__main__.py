@@ -1,6 +1,9 @@
-"""CLI entry point."""
+#!/usr/bin/env python3
+"""
+Jarvis-Miner entry point.
+"""
 
-from cli import cli
+import sys
+from cli.main import cli
 
-if __name__ == "__main__":
-    cli()
+sys.exit(cli())

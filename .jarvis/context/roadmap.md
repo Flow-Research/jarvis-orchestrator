@@ -2,16 +2,26 @@
 
 ## Now
 
-- _List the current phase and immediate milestones._
+- Complete SN13 Phase 7 live validator verification.
+- Deliver:
+  - run listener against testnet with real validator traffic
+  - capture request versions, payloads, and timeout values
+  - compare captures to protocol adapter assumptions
+  - adjust listener only where captures prove a mismatch
+  - document final request/response inventory
 
 ## Next
 
-- _List the next phase or the next major deliverables._
+- SN13 Phase 8: Production Hardening
+- S3 API upload wrapper around local parquet artifacts
 
 ## Later
 
-- _List deferred work, dependencies, or future milestones._
+- Full workstream transport integration
+- Operator payout/credit accounting beyond basic quality stats
 
 ## Notes
 
-- _Capture sequencing assumptions and open roadmap questions._
+- SN13 sequencing is documented in `subnets/sn13/docs/IMPLEMENTATION_PLAN.md`.
+- The implementation rule is one active phase at a time.
+- Upstream SN13 should be treated as a protocol reference, not a codebase to overwrite Jarvis with.

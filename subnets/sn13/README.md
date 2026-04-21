@@ -1,0 +1,95 @@
+# Subnet 13 — Data Universe
+
+This package contains Jarvis's SN13 miner-orchestrator implementation.
+
+Jarvis is the miner identity on SN13. Personal operators scrape data for Jarvis. Jarvis validates those submissions, stores canonical miner data, serves validators, and prepares export data.
+
+## What This Package Builds
+
+```text
+SN13 Dynamic Desirability
+        |
+        v
+Jarvis planner decides what data is valuable
+        |
+        v
+Personal operators receive scrape tasks
+        |
+        v
+Operators submit structured source records
+        |
+        v
+Jarvis validates, dedupes, and stores accepted data
+        |
+        v
+Jarvis serves validators as the SN13 miner
+        |
+        v
+Jarvis exports canonical data for S3/parquet validation
+```
+
+## Current Implementation State
+
+Completed:
+
+- canonical SN13 data model
+- structured operator intake model
+- SQLite-only canonical storage
+- freshness and scoring policy core
+- Dynamic Desirability matching
+- quality and rejection layer
+- operator demand planner
+- operator task contract
+- local structured ingestion runtime
+- local S3/parquet export artifact generation
+
+Next active phase:
+
+- live SN13 protocol alignment from real validator captures
+
+## Code Map
+
+| Concern | Module |
+| --- | --- |
+| Canonical miner objects | `models.py` |
+| Operator submission schema | `intake.py` |
+| Freshness, limits, score policy | `policy.py` |
+| Dynamic Desirability | `desirability.py` |
+| Submission quality gate | `quality.py` |
+| Operator demand planning | `planner.py` |
+| Operator task and local runtime | `tasks.py` |
+| Canonical SQLite storage | `storage.py` |
+| Parquet export artifacts | `export.py` |
+| Validator-facing listener | `listener/` |
+| Upstream synapse response adapter | `listener/protocol_adapter.py` |
+
+## Storage
+
+Canonical database:
+
+```text
+subnets/sn13/data/sn13.sqlite3
+```
+
+Markdown storage was removed. All accepted data enters SQLite through structured intake and quality checks.
+
+## Documentation
+
+Read the design docs before changing SN13 code:
+
+1. `docs/README.md`
+2. `docs/GLOSSARY.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/DATA_VALUE_AND_INCENTIVES.md`
+5. `docs/OPERATOR_CONTRACT.md`
+6. `docs/IMPLEMENTATION_PLAN.md`
+7. `docs/UPSTREAM_ASSUMPTIONS.md`
+8. `docs/UPSTREAM_SYNC.md`
+
+## Design Boundary
+
+Operators produce candidate data.
+
+Jarvis decides whether candidate data becomes miner truth.
+
+Validators only interact with Jarvis.
