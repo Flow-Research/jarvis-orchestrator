@@ -21,7 +21,6 @@ from .policy import DesirableJobWindow, ScorableDecision, SN13Policy
 
 PLATFORM_TO_SOURCE = {
     "x": DataSource.X,
-    "twitter": DataSource.X,
     "reddit": DataSource.REDDIT,
     "youtube": DataSource.YOUTUBE,
 }

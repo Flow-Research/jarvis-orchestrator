@@ -5,8 +5,11 @@ Unified CLI for wallet, miner, network, and config operations.
 ## Installation
 
 ```bash
-uv pip install -e .
+uv pip install --python .venv/bin/python -e .
+ln -sf /home/abiorh/flow/jarvis-orchestrator/.venv/bin/jarvis-miner ~/.local/bin/jarvis-miner
 ```
+
+After installation, use `jarvis-miner` directly. Do not use `python -m cli` for normal operations.
 
 ## Usage
 

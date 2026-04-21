@@ -9,6 +9,8 @@
 
 - CLI refactor has been aligned and tested against the grouped command surface.
 - `cli/main.py` is now the canonical CLI implementation; the old `cli_v2` package and legacy CLI wrappers have been removed.
+- `jarvis-miner` is installed as the normal operational entrypoint and linked from `~/.local/bin/jarvis-miner`.
+- Operational commands should use `jarvis-miner`; `python -m cli` is only for low-level packaging/debug fallback.
 - SN13 has been reset onto:
   - canonical miner models
   - operator intake models
