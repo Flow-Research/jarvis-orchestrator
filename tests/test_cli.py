@@ -223,7 +223,17 @@ class TestHelp:
         assert "status" in root_help.output
         assert "tasks" in root_help.output
 
-    def test_workstream_serve_fails_cleanly_without_auth_config(self, runner: CliRunner):
+    def test_workstream_serve_fails_cleanly_without_auth_config(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ):
+        for key in (
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON",
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE",
+            "JARVIS_OPERATOR_ID",
+            "JARVIS_OPERATOR_SECRET",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
         result = runner.invoke(cli, ["workstream", "serve"])
 
         assert result.exit_code == 1

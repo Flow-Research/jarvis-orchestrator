@@ -168,6 +168,43 @@ def test_workstream_api_rejects_unmodeled_submission_fields():
     assert response.status_code == 422
 
 
+def test_workstream_api_rejects_naive_source_created_at():
+    client, workstream, _stats = _client()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            subnet="sn13",
+            source="X",
+            contract={"task_id": "task_1", "source": "X"},
+        )
+    )
+
+    response = client.post(
+        "/v1/submissions",
+        json={
+            "task_id": "task_1",
+            "operator_id": "operator_1",
+            "subnet": "sn13",
+            "records": [
+                {
+                    "uri": "https://x.com/example/status/1",
+                    "source_created_at": "2026-04-22T10:02:00",
+                    "content": {
+                        "tweet_id": "1",
+                        "username": "alice",
+                        "text": "Bittensor subnet data",
+                        "url": "https://x.com/example/status/1",
+                        "timestamp": "2026-04-22T10:02:00+00:00",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "timezone offset" in response.text
+
+
 def test_workstream_api_returns_operator_stats():
     client, _workstream, stats = _client()
     stats.set_operator_stats(
@@ -319,6 +356,20 @@ def test_workstream_api_settings_parse_host_port_and_operator_map():
     assert settings.configured_operator_count == 2
     assert settings.configured_operator_ids == ["operator_1", "operator_2"]
     assert settings.max_clock_skew_seconds == 120
+
+
+def test_workstream_api_settings_parse_operator_map_from_file(tmp_path):
+    secrets_path = tmp_path / "operators.json"
+    secrets_path.write_text('{"operator_01":"secret1","operator_02":"secret2"}\n')
+
+    settings = load_workstream_api_settings(
+        {
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE": str(secrets_path),
+        }
+    )
+
+    assert settings.configured_operator_count == 2
+    assert settings.configured_operator_ids == ["operator_01", "operator_02"]
 
 
 def test_runtime_configuration_reports_operator_ids_and_host_port():

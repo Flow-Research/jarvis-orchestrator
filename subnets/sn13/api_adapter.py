@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import ValidationError
 
@@ -277,7 +278,7 @@ def _contract_rejection_reasons(
         reasons.append("acceptance:source_created_at_after_window")
 
     expected_label = normalize_label(contract.get("label"))
-    if expected_label and submission.label != expected_label:
+    if expected_label and not _submission_matches_contract_label(submission, expected_label):
         reasons.append("acceptance:label_mismatch")
 
     keyword = contract.get("keyword")
@@ -293,3 +294,75 @@ def _parse_datetime(value: datetime | str) -> datetime:
     if isinstance(value, datetime):
         return value
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _submission_matches_contract_label(
+    submission: OperatorSubmission,
+    expected_label: str,
+) -> bool:
+    if submission.source == DataSource.REDDIT:
+        return _reddit_submission_matches_label(submission, expected_label)
+    if submission.source == DataSource.X:
+        return _x_submission_matches_label(submission, expected_label)
+    return submission.label == expected_label
+
+
+def _reddit_submission_matches_label(
+    submission: OperatorSubmission,
+    expected_label: str,
+) -> bool:
+    content = submission.content
+    candidates = [
+        content.get("subreddit"),
+        content.get("subreddit_name_prefixed"),
+        _extract_reddit_label_from_url(content.get("url")),
+        _extract_reddit_label_from_url(submission.uri),
+    ]
+    normalized_candidates = {
+        candidate
+        for candidate in (_normalize_reddit_label(value) for value in candidates)
+        if candidate is not None
+    }
+    return expected_label in normalized_candidates
+
+
+def _x_submission_matches_label(
+    submission: OperatorSubmission,
+    expected_label: str,
+) -> bool:
+    content = submission.content
+    hashtags = content.get("hashtags")
+    if isinstance(hashtags, list):
+        normalized_hashtags = {
+            normalize_label(str(tag)) for tag in hashtags if str(tag).strip()
+        }
+        if expected_label in normalized_hashtags:
+            return True
+
+    text = str(content.get("text", "")).casefold()
+    if expected_label.startswith("#"):
+        return expected_label in text
+    return expected_label in text
+
+
+def _normalize_reddit_label(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.startswith("/r/"):
+        text = text[1:]
+    if not text.casefold().startswith("r/"):
+        text = f"r/{text}"
+    return normalize_label(text)
+
+
+def _extract_reddit_label_from_url(value: Any) -> str | None:
+    if value is None:
+        return None
+    parsed = urlparse(str(value))
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) >= 2 and parts[0].casefold() == "r":
+        return _normalize_reddit_label(f"r/{parts[1]}")
+    return None

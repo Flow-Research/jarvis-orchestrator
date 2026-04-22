@@ -14,6 +14,7 @@ services:
       - ./deploy/jarvis.mainnet.env
     environment:
       ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
     volumes:
       - ./data:/app/data
       - ./subnets/sn13/data:/app/subnets/sn13/data
@@ -39,6 +40,7 @@ services:
       - ./deploy/jarvis.mainnet.env
     environment:
       ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
     ports:
       - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
     volumes:

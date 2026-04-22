@@ -42,6 +42,7 @@ services:
       ARROW_USER_SIMD_LEVEL: NONE
       JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
       JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
       PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
@@ -77,6 +78,7 @@ services:
       JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
       JARVIS_SN13_GRAVITY_CACHE_DIR: ${PWD}/subnets/sn13/cache/gravity
       JARVIS_SN13_LISTENER_CAPTURE_DIR: ${PWD}/subnets/sn13/listener/captures
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
       PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - ${PWD}:${PWD}
