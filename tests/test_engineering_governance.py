@@ -111,7 +111,7 @@ def test_mainnet_readiness_doc_covers_costs_deployment_and_operator_split():
         "personal operator requirements",
         "why jarvis maintains its own archive s3",
         "dockerfile",
-        "compose.yaml",
+        "docker-compose.yaml",
         "registration-monitor",
         "workstream-api",
         "sn13-scheduler",
