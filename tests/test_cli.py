@@ -473,6 +473,19 @@ class TestMonitorCommands:
             def __init__(self, global_cfg, subnets):
                 self.global_cfg = global_cfg
                 self.subnets = subnets
+                history_type = type("History", (), {"readings": []})
+                state_type = type(
+                    "State",
+                    (),
+                    {
+                        "get_history": lambda self, netuid: history_type(),
+                        "poll_counts": {},
+                    },
+                )
+                self.state = state_type()
+                self.last_registration_result = {}
+                self.last_poll_error = {}
+                self.last_poll_time = {}
 
             async def start(self):
                 return None
@@ -483,6 +496,8 @@ class TestMonitorCommands:
             def __init__(self, global_cfg, subnets):
                 self.global_cfg = global_cfg
                 self.subnets = subnets
+                self.last_status = {}
+                self.last_error = {}
 
             async def start(self):
                 return None
@@ -495,8 +510,7 @@ class TestMonitorCommands:
         assert result.exit_code == 0
         assert "JARVIS ORCHESTRATOR" in result.output
         assert "Registration Watch" in result.output
-        assert "Watched Subnets" in result.output
-        assert "Running quietly" in result.output
+        assert "Running quiet live dashboard" in result.output
         assert "Polling every" not in result.output
 
     def test_monitor_price_uses_configured_thresholds(
@@ -575,14 +589,47 @@ class TestMonitorCommands:
     def test_deregister_check_reports_missing_config_entries(
         self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
+        import miner_tools.deregister as deregister_module
         import miner_tools.fetcher as fetcher
 
         monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+        monkeypatch.setattr(deregister_module, "get_wallet_hotkey_ss58", lambda wallet_cfg: "hk1")
 
         result = runner.invoke(cli, ["-c", str(config_path), "deregister-check"])
 
         assert result.exit_code == 0
-        assert "No deregister entries configured" in result.output
+        assert "No deregister watches are active" in result.output
+
+    def test_deregister_check_uses_auto_register_wallet_when_enabled(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.deregister as deregister_module
+        import miner_tools.fetcher as fetcher
+
+        config_path = _write_config(
+            tmp_path,
+            """
+global:
+  subtensor_network: test
+subnets:
+  - netuid: 13
+    price_threshold_tao: 0.5
+    auto_register: true
+    alerts:
+      discord:
+        webhook_url: "https://discord.test"
+""",
+        )
+
+        monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+        monkeypatch.setattr(fetcher, "is_registered_sdk", lambda *args, **kwargs: True)
+        monkeypatch.setattr(deregister_module, "get_wallet_hotkey_ss58", lambda wallet_cfg: "hk1")
+
+        result = runner.invoke(cli, ["-c", str(config_path), "deregister-check"])
+
+        assert result.exit_code == 0
+        assert "Deregister Monitor Status" in result.output
+        assert "REGISTERED" in result.output
 
 
 class TestSN13Commands:
@@ -992,8 +1039,25 @@ class TestSN13Commands:
         project_root = tmp_path / "repo"
         subnet_dir = project_root / "subnets" / "sn13"
         subnet_dir.mkdir(parents=True)
+        capture_dir = subnet_dir / "listener" / "captures"
+        capture_dir.mkdir(parents=True)
         (subnet_dir / "state.json").write_text(
             json.dumps({"pid": 1234, "running": True, "network": "testnet", "wallet": "sn13miner"})
+        )
+        (capture_dir / "summary.json").write_text(
+            json.dumps(
+                {
+                    "capture_dir": str(capture_dir),
+                    "total_queries": 3,
+                    "counts_by_query_type": {
+                        "GetMinerIndex": 1,
+                        "GetDataEntityBucket": 1,
+                        "GetContentsByBuckets": 1,
+                    },
+                    "counts_by_validator": {"validator_hotkey": 3},
+                    "recent_queries": [],
+                }
+            )
         )
 
         home = tmp_path / "home"
@@ -1018,6 +1082,7 @@ class TestSN13Commands:
         assert "SN13 Readiness" in result.output
         assert "can_serve_validators" in result.output
         assert "Intake personal-operator uploads" in result.output
+        assert "Listener captures" in result.output
 
         json_result = runner.invoke(
             cli,
@@ -1034,6 +1099,103 @@ class TestSN13Commands:
         payload = json.loads(json_result.output)
         assert payload["capabilities"]["can_serve_validators"] is True
         assert payload["capabilities"]["jarvis_can_intake_operator_uploads"] is True
+        assert payload["runtime"]["listener_capture_count"] == 3
+        assert payload["runtime"]["listener_query_types"] == [
+            "GetContentsByBuckets",
+            "GetDataEntityBucket",
+            "GetMinerIndex",
+        ]
+
+    def test_sn13_listener_status_reads_capture_summary(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        capture_dir = project_root / "subnets" / "sn13" / "listener" / "captures"
+        capture_dir.mkdir(parents=True)
+        (project_root / "subnets" / "sn13" / "state.json").write_text(
+            json.dumps({"pid": 7777, "running": True, "network": "testnet", "wallet": "sn13miner"})
+        )
+        (capture_dir / "summary.json").write_text(
+            json.dumps(
+                {
+                    "capture_dir": str(capture_dir),
+                    "total_queries": 4,
+                    "counts_by_query_type": {"GetMinerIndex": 2, "GetDataEntityBucket": 2},
+                    "counts_by_validator": {"v1": 4},
+                    "recent_queries": [],
+                }
+            )
+        )
+
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+        monkeypatch.setattr(cli_main.os, "kill", lambda pid, sig: None)
+
+        result = runner.invoke(cli, ["sn13", "listener", "status", "--json"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["running"] is True
+        assert payload["capture_summary"]["total_queries"] == 4
+
+    def test_sn13_listener_verify_fails_when_query_surface_is_incomplete(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        capture_dir = project_root / "subnets" / "sn13" / "listener" / "captures"
+        capture_dir.mkdir(parents=True)
+        (capture_dir / "summary.json").write_text(
+            json.dumps(
+                {
+                    "capture_dir": str(capture_dir),
+                    "total_queries": 2,
+                    "counts_by_query_type": {"GetMinerIndex": 2},
+                    "counts_by_validator": {"v1": 2},
+                    "recent_queries": [],
+                }
+            )
+        )
+
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(cli, ["sn13", "listener", "verify", "--json"])
+
+        assert result.exit_code == 2
+        payload = json.loads(result.output)
+        assert payload["verified"] is False
+        assert payload["missing_query_types"] == [
+            "GetContentsByBuckets",
+            "GetDataEntityBucket",
+        ]
+
+    def test_sn13_listener_verify_passes_when_all_queries_are_present(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        capture_dir = project_root / "subnets" / "sn13" / "listener" / "captures"
+        capture_dir.mkdir(parents=True)
+        (capture_dir / "summary.json").write_text(
+            json.dumps(
+                {
+                    "capture_dir": str(capture_dir),
+                    "total_queries": 6,
+                    "counts_by_query_type": {
+                        "GetContentsByBuckets": 2,
+                        "GetDataEntityBucket": 2,
+                        "GetMinerIndex": 2,
+                    },
+                    "counts_by_validator": {"v1": 6},
+                    "recent_queries": [],
+                }
+            )
+        )
+
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(cli, ["sn13", "listener", "verify", "--json"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["verified"] is True
 
     def test_sn13_operator_and_validator_simulation_share_storage(
         self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -86,6 +86,8 @@ class SN13RuntimeState(BaseModel):
     wallet_hotkey_can_sign: bool = False
     parquet_export_available: bool = False
     jarvis_archive_bucket_configured: bool = False
+    listener_capture_count: int = Field(default=0, ge=0)
+    listener_query_types: tuple[str, ...] = ()
 
 
 class SN13ReadinessReport(BaseModel):
@@ -196,6 +198,38 @@ def evaluate_sn13_readiness(
                 "Canonical SQLite storage is healthy."
                 if runtime.local_db_healthy
                 else "Jarvis cannot intake operator uploads until canonical SQLite is healthy."
+            ),
+            upstream_confirmed=False,
+        )
+    )
+
+    capture_count = runtime.listener_capture_count
+    checks.append(
+        ReadinessCheck(
+            name="listener_capture_evidence_present",
+            status=ReadinessStatus.PASS if capture_count > 0 else ReadinessStatus.WARN,
+            message=(
+                f"{capture_count} listener capture(s) recorded."
+                if capture_count > 0
+                else "No listener captures recorded yet. Live validator verification is still open."
+            ),
+            upstream_confirmed=False,
+        )
+    )
+
+    observed_query_types = set(runtime.listener_query_types)
+    required_query_types = {"GetMinerIndex", "GetDataEntityBucket", "GetContentsByBuckets"}
+    missing_query_types = sorted(required_query_types - observed_query_types)
+    checks.append(
+        ReadinessCheck(
+            name="listener_query_surface_observed",
+            status=ReadinessStatus.PASS if not missing_query_types else ReadinessStatus.WARN,
+            message=(
+                "Observed listener query types: "
+                + ", ".join(sorted(observed_query_types))
+                if not missing_query_types
+                else "Missing live capture evidence for query types: "
+                + ", ".join(missing_query_types)
             ),
             upstream_confirmed=False,
         )

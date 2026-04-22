@@ -24,6 +24,8 @@ jarvis-miner --help
 
 Jarvis administrators should use `jarvis-miner`. `python -m cli` is only a packaging/debug fallback.
 
+For the deployment package, see [docs/JARVIS_MAINNET_READINESS.md](/home/abiorh/flow/jarvis-orchestrator/docs/JARVIS_MAINNET_READINESS.md) and [compose.yaml](/home/abiorh/flow/jarvis-orchestrator/compose.yaml).
+
 ## Root Options
 
 ```bash
@@ -496,12 +498,18 @@ Options:
 
 ## Miner Lifecycle
 
-`miner start/status/logs/stop` remain the generic lifecycle commands for subnet runtime scripts. SN13's old experimental listener runtime was removed because it mixed validator serving with operator task decomposition. The production SN13 listener entrypoint must be added after real validator captures confirm the request shape.
+`miner start/status/logs/stop` remain the generic lifecycle commands for subnet runtime scripts. SN13's old experimental listener runtime was removed because it mixed validator serving with operator task decomposition. The current SN13 listener entrypoint serves canonical SQLite through the protocol adapter and records captures through the protocol observer. Live validator captures are still required before treating that runtime as production-verified.
 
 Start a subnet runtime when the subnet has a supported entrypoint:
 
 ```bash
 jarvis-miner miner start --subnet 13 --network testnet --wallet sn13miner_nopw
+```
+
+For local protocol work without chain advertisement, run the listener directly in offline mode:
+
+```bash
+uv run python subnets/sn13/listener/listener.py --wallet sn13miner --network finney --offline
 ```
 
 Check status:
@@ -533,6 +541,22 @@ subnets/sn13/exports/
 subnets/sn13/cache/gravity/
 ```
 
+Listener verification commands:
+
+```bash
+jarvis-miner sn13 listener status
+jarvis-miner sn13 listener verify
+jarvis-miner sn13 listener verify --json-output
+```
+
+`sn13 listener status` shows process state plus capture summary.
+
+`sn13 listener verify` checks whether captured live traffic covers the three grounded SN13 query types:
+
+- `GetMinerIndex`
+- `GetDataEntityBucket`
+- `GetContentsByBuckets`
+
 ## Monitor Commands
 
 The monitor commands restore the original registration-price monitor behavior inside the modern `jarvis-miner` CLI.
@@ -553,9 +577,11 @@ This starts:
 - threshold/floor alerts
 - signal-file writes when configured
 - auto-registration for subnets with `auto_register: true`
+- max-spend enforcement for subnets with `max_spend_tao`
 - deregistration monitoring for configured `deregister` hotkeys
+- automatic Jarvis-hotkey deregistration tracking on auto-register subnets
 
-By default, watch mode runs quietly after the dashboard so bittensor and polling logs do not flood the terminal. Use `-v` when you need detailed per-poll logs.
+Default watch mode uses a live dashboard that keeps the current burn cost, threshold state, auto-join state, and deregistration watch state visible without flooding the terminal. Use `-v` when you need detailed per-poll logs.
 
 ### Price Check
 
@@ -621,6 +647,8 @@ jarvis-miner deregister-check
 ```
 
 Checks each configured `deregister` hotkey and reports whether it is still registered on its subnet.
+
+If a subnet has `auto_register: true` and no explicit `deregister` entries, the command tracks the Jarvis monitor wallet hotkey on that subnet automatically.
 
 ### Monitor Wallet
 

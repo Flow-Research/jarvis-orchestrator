@@ -156,3 +156,31 @@ def test_custom_requirement_profile_changes_economic_floor():
 
     assert report.can(SN13Capability.SERVE_VALIDATORS) is False
     assert _check(report, "disk_above_blocker_floor").status == ReadinessStatus.BLOCKED
+
+
+def test_missing_listener_captures_warn_without_blocking_runtime_capability():
+    report = evaluate_sn13_readiness(
+        runtime=_ready_runtime(listener_capture_count=0, listener_query_types=()),
+        env={},
+    )
+
+    assert report.can(SN13Capability.SERVE_VALIDATORS) is True
+    assert _check(report, "listener_capture_evidence_present").status == ReadinessStatus.WARN
+    assert _check(report, "listener_query_surface_observed").status == ReadinessStatus.WARN
+
+
+def test_listener_capture_query_surface_passes_when_all_queries_are_observed():
+    report = evaluate_sn13_readiness(
+        runtime=_ready_runtime(
+            listener_capture_count=12,
+            listener_query_types=(
+                "GetContentsByBuckets",
+                "GetDataEntityBucket",
+                "GetMinerIndex",
+            ),
+        ),
+        env={},
+    )
+
+    assert _check(report, "listener_capture_evidence_present").status == ReadinessStatus.PASS
+    assert _check(report, "listener_query_surface_observed").status == ReadinessStatus.PASS

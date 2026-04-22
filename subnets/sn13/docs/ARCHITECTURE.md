@@ -235,7 +235,8 @@ Current implementation status:
 - compressed miner index output uses Macrocosm's `sources -> compressed buckets` shape
 - `protocol_observer.py` records request and response shape for live capture
 - the old experimental listener runtime and validator-request decomposition path have been removed
-- live validator capture and a production runtime entrypoint are still required before production readiness
+- the production listener runtime entrypoint now exists in `listener/listener.py`
+- live validator capture is still required before production readiness
 
 ### 9. Export Layer
 
@@ -338,7 +339,7 @@ The remaining major gaps are:
 - upstream S3 API upload wrapper around generated parquet artifacts
 - Jarvis archive S3 upload wrapper and retention cleanup
 - live SN13 protocol alignment from real captures
-- production listener runtime entrypoint
+- live validator capture verification for the committed listener runtime
 - production workstream transport
 - robust migrations for SQLite schema changes
 - operator payout/credit accounting beyond quality stats

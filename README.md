@@ -92,6 +92,14 @@ jarvis-miner sn13 simulate validator --query bucket --source X --label "#bittens
 
 Machine-readable admin commands accept both `--json-output` and the shorter `--json`.
 
+Mainnet deployment package:
+
+- deployment and cost brief: [docs/JARVIS_MAINNET_READINESS.md](/home/abiorh/flow/jarvis-orchestrator/docs/JARVIS_MAINNET_READINESS.md)
+- Docker image: [Dockerfile](/home/abiorh/flow/jarvis-orchestrator/Dockerfile)
+- Compose stack: [compose.yaml](/home/abiorh/flow/jarvis-orchestrator/compose.yaml)
+- deployment env: [deploy/jarvis.mainnet.env](/home/abiorh/flow/jarvis-orchestrator/deploy/jarvis.mainnet.env)
+- monitor config: [deploy/monitor.mainnet.yaml](/home/abiorh/flow/jarvis-orchestrator/deploy/monitor.mainnet.yaml)
+
 ## Documentation
 
 - [Engineering Gates](docs/ENGINEERING_GATES.md)

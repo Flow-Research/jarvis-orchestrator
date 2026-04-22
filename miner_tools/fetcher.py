@@ -153,6 +153,17 @@ def close_subtensor():
     _subtensor_cache.clear()
 
 
+def get_wallet_hotkey_ss58(wallet_cfg: WalletConfig) -> str:
+    """Resolve the configured wallet hotkey SS58 address."""
+    bt = _import_bittensor()
+    wallet = bt.Wallet(
+        name=wallet_cfg.name,
+        hotkey=wallet_cfg.hotkey,
+        path=wallet_cfg.path,
+    )
+    return wallet.hotkeypub.ss58_address
+
+
 # ── Auto-Registration ───────────────────────────────────────────────────
 
 

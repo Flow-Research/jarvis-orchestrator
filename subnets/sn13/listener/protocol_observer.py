@@ -175,6 +175,13 @@ def extract_public_attributes(value: Any) -> dict[str, Any]:
     """Extract non-callable public attributes from an arbitrary object."""
     if isinstance(value, dict):
         return {str(key): json_safe(item) for key, item in value.items()}
+    if hasattr(value, "model_dump") and callable(value.model_dump):
+        try:
+            dumped = value.model_dump()
+        except Exception:
+            dumped = None
+        if isinstance(dumped, dict):
+            return {str(key): json_safe(item) for key, item in dumped.items()}
 
     attrs: dict[str, Any] = {}
     for attr in dir(value):

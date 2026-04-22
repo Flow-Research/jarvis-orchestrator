@@ -16,6 +16,7 @@ from .models import (
     AlertLevel,
     GlobalConfig,
     MonitorState,
+    RegistrationResult,
     SubnetConfig,
     Trend,
 )
@@ -41,6 +42,9 @@ class Monitor:
         self._bittensor_lock = asyncio.Lock()
         # Track subnets we've auto-registered on (avoid re-registering every cycle)
         self._registered_subnets: set[int] = set()
+        self.last_registration_result: dict[int, RegistrationResult] = {}
+        self.last_poll_error: dict[int, str] = {}
+        self.last_poll_time: dict[int, datetime] = {}
 
     @property
     def state_path(self) -> Path:
@@ -113,6 +117,7 @@ class Monitor:
                 self.stop()
                 return
             except Exception:
+                self.last_poll_error[subnet.netuid] = "poll_cycle_failed"
                 logger.exception(f"[{label}] Poll cycle failed")
                 logger.error(f"[{label}] Will retry in {subnet.poll_interval_seconds}s")
 
@@ -166,6 +171,8 @@ class Monitor:
         history = self.state.get_history(subnet.netuid)
         history.add(reading)
         self.state.poll_counts[subnet.netuid] = self.state.poll_counts.get(subnet.netuid, 0) + 1
+        self.last_poll_time[subnet.netuid] = reading.timestamp
+        self.last_poll_error.pop(subnet.netuid, None)
 
         trend = history.compute_trend(self.global_cfg.trend_window)
         reading.trend = trend
@@ -286,6 +293,22 @@ class Monitor:
         wallet = self.global_cfg.wallet
         label = subnet.label
 
+        if subnet.max_spend_tao is not None and reading.cost_tao > subnet.max_spend_tao:
+            result = RegistrationResult(
+                netuid=subnet.netuid,
+                success=False,
+                cost_tao=reading.cost_tao,
+                hotkey="",
+                error="cost_above_max_spend",
+            )
+            self.last_registration_result[subnet.netuid] = result
+            logger.warning(
+                f"[{label}] Auto-register blocked on SN{subnet.netuid}: "
+                f"cost {reading.cost_tao:.6f} TAO exceeds max_spend_tao "
+                f"{subnet.max_spend_tao:.6f} TAO"
+            )
+            return
+
         logger.info(
             f"[{label}] Price {reading.cost_tao:.6f} TAO <= threshold "
             f"{subnet.price_threshold_tao:.6f} TAO — attempting auto-register "
@@ -301,6 +324,7 @@ class Monitor:
                     self.global_cfg.subtensor_network,
                     self.global_cfg.subtensor_endpoint,
                 )
+            self.last_registration_result[subnet.netuid] = result
 
             if result.error == "already_registered":
                 logger.info(
@@ -346,6 +370,13 @@ class Monitor:
                     f"[{label}] Auto-registration FAILED on SN{subnet.netuid}: {result.error}"
                 )
         except Exception:
+            self.last_registration_result[subnet.netuid] = RegistrationResult(
+                netuid=subnet.netuid,
+                success=False,
+                cost_tao=reading.cost_tao,
+                hotkey="",
+                error="exception",
+            )
             logger.exception(f"[{label}] Auto-registration error on SN{subnet.netuid}")
 
     # ── Floor detection ──────────────────────────────────────────────────

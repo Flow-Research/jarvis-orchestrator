@@ -5,7 +5,8 @@
 - Complete SN13 production hardening before any mainnet claim.
 - Deliver:
   - archive/upload pipeline around canonical export artifacts
-  - real listener runtime on canonical SQLite
+  - deployment verification for the committed listener runtime on canonical SQLite
+  - listener daemon entrypoint and supervisor path for deployed runtime
   - live validator capture with request/response fixture verification
   - persistent operator accounting ledger
   - automated DD refresh/publication operation review

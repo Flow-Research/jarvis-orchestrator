@@ -11,12 +11,14 @@ import shutil
 import signal
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import click
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
@@ -172,9 +174,38 @@ def _sn13_gravity_cache_dir() -> Path:
     return PROJECT_ROOT / "subnets" / "sn13" / "cache" / "gravity"
 
 
+def _sn13_capture_dir() -> Path:
+    return PROJECT_ROOT / "subnets" / "sn13" / "listener" / "captures"
+
+
 def _workstream_db_path() -> Path:
     default_path = PROJECT_ROOT / "data" / "workstream.sqlite3"
     return Path(os.environ.get("JARVIS_WORKSTREAM_DB_PATH", str(default_path)))
+
+
+def _load_capture_summary(capture_dir: Path) -> dict[str, Any]:
+    """Load the SN13 listener capture summary if it exists."""
+    summary_file = capture_dir / "summary.json"
+    if not summary_file.exists():
+        return {
+            "capture_dir": str(capture_dir),
+            "total_queries": 0,
+            "counts_by_query_type": {},
+            "counts_by_validator": {},
+            "recent_queries": [],
+        }
+    try:
+        payload = json.loads(summary_file.read_text())
+    except json.JSONDecodeError:
+        return {
+            "capture_dir": str(capture_dir),
+            "total_queries": 0,
+            "counts_by_query_type": {},
+            "counts_by_validator": {},
+            "recent_queries": [],
+            "error": "invalid_summary_json",
+        }
+    return payload if isinstance(payload, dict) else {}
 
 
 def _runtime_entrypoint_for_subnet(subnet: int) -> Path | None:
@@ -258,6 +289,158 @@ def _print_banner() -> None:
             border_style="cyan",
         )
     )
+
+
+def _monitor_age_label(timestamp) -> str:
+    """Render how old a monitor timestamp is."""
+    if timestamp is None:
+        return "-"
+    try:
+        seconds = max(int((datetime.now(timezone.utc) - timestamp).total_seconds()), 0)
+    except Exception:
+        return "-"
+    if seconds < 60:
+        return f"{seconds}s ago"
+    minutes, seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m ago"
+
+
+def _monitor_price_status(cost_tao: float | None, threshold_tao: float) -> str:
+    """Summarize registration cost against the threshold."""
+    if cost_tao is None:
+        return "pending"
+    if threshold_tao <= 0:
+        return "observing"
+    if cost_tao <= threshold_tao * 0.5:
+        return "excellent"
+    if cost_tao <= threshold_tao:
+        return "ready"
+    if cost_tao <= threshold_tao * 1.5:
+        return "near"
+    if cost_tao <= threshold_tao * 3:
+        return "high"
+    return "very high"
+
+
+def _monitor_autojoin_status(subnet, monitor_engine) -> str:
+    """Summarize auto-register state for one subnet."""
+    if not subnet.auto_register:
+        return "manual"
+
+    result = monitor_engine.last_registration_result.get(subnet.netuid)
+    if result:
+        if result.success and result.error == "already_registered":
+            return "already registered"
+        if result.success:
+            return "registered"
+        if result.error == "cost_above_max_spend":
+            return "blocked by max spend"
+        if result.error:
+            return f"failed: {result.error}"
+
+    history = monitor_engine.state.get_history(subnet.netuid)
+    reading = history.readings[-1] if history.readings else None
+    if reading is None:
+        return "waiting for first poll"
+    if subnet.max_spend_tao is not None and reading.cost_tao > subnet.max_spend_tao:
+        return "above max spend"
+    if reading.cost_tao <= subnet.price_threshold_tao:
+        return "armed"
+    return "watching"
+
+
+def _monitor_deregister_status(subnet, dereg_monitor) -> str:
+    """Summarize deregistration watch state for one subnet."""
+    if not subnet.deregister_entries:
+        return "-"
+    if subnet.netuid in dereg_monitor.last_error:
+        return f"error: {dereg_monitor.last_error[subnet.netuid]}"
+    statuses = dereg_monitor.last_status.get(subnet.netuid, {})
+    if not statuses:
+        return f"0/{len(subnet.deregister_entries)} checked"
+    registered = sum(1 for value in statuses.values() if value)
+    deregistered = sum(1 for value in statuses.values() if not value)
+    if deregistered:
+        return f"{deregistered} deregistered"
+    return f"{registered}/{len(subnet.deregister_entries)} registered"
+
+
+def _build_monitor_watch_renderable(global_cfg, enabled, monitor_engine, dereg_monitor):
+    """Build the live renderable for quiet monitor watch mode."""
+    wallet = global_cfg.wallet
+    header = Panel.fit(
+        "\n".join(
+            [
+                "[bold cyan]JARVIS ORCHESTRATOR[/bold cyan]",
+                "[bold white]Registration Watch[/bold white]",
+                (
+                    f"Network [bold]{global_cfg.subtensor_network}[/bold] | "
+                    f"source [bold]{global_cfg.price_source}[/bold] | "
+                    f"data [bold]{global_cfg.data_dir}[/bold]"
+                ),
+                (
+                    f"Wallet [bold]{wallet.name}/{wallet.hotkey}[/bold] | "
+                    "Ctrl+C to stop"
+                ),
+            ]
+        ),
+        border_style="cyan",
+    )
+
+    table = Table(title="Live Registration Monitor", show_lines=False)
+    table.add_column("SN", justify="right", style="cyan")
+    table.add_column("Name", style="white")
+    table.add_column("Burn", justify="right", style="yellow")
+    table.add_column("Threshold", justify="right")
+    table.add_column("Trend", justify="center")
+    table.add_column("Status", justify="center")
+    table.add_column("Auto-Join", style="green")
+    table.add_column("Dereg", style="magenta")
+    table.add_column("Polls", justify="right")
+    table.add_column("Updated", justify="right")
+
+    for subnet in enabled:
+        history = monitor_engine.state.get_history(subnet.netuid)
+        reading = history.readings[-1] if history.readings else None
+        burn = f"{reading.cost_tao:.6f}" if reading else "-"
+        trend = reading.trend.value if reading else "-"
+        status = _monitor_price_status(
+            reading.cost_tao if reading else None,
+            subnet.price_threshold_tao,
+        )
+        polls = str(monitor_engine.state.poll_counts.get(subnet.netuid, 0))
+        updated_at = monitor_engine.last_poll_time.get(subnet.netuid)
+        if subnet.netuid in monitor_engine.last_poll_error:
+            updated = f"error: {monitor_engine.last_poll_error[subnet.netuid]}"
+        else:
+            updated = _monitor_age_label(updated_at)
+        autojoin = _monitor_autojoin_status(subnet, monitor_engine)
+        dereg = _monitor_deregister_status(subnet, dereg_monitor)
+
+        table.add_row(
+            str(subnet.netuid),
+            subnet.label,
+            burn,
+            f"{subnet.price_threshold_tao:.6f}",
+            trend,
+            status,
+            autojoin,
+            dereg,
+            polls,
+            updated,
+        )
+
+    footer = Panel.fit(
+        (
+            "Quiet mode shows live burn cost, threshold state, auto-join state, "
+            "and deregistration watch state. Use `-v` for raw poll logs."
+        ),
+        border_style="blue",
+    )
+    return Group(header, table, footer)
 
 
 def _configure_monitor_logging(verbose: bool = False) -> None:
@@ -1003,64 +1186,118 @@ def _monitor_watch_impl(ctx) -> None:
     alert_channel_set = {
         label for subnet in enabled if (label := _alert_channels_label(subnet)) != "-"
     }
-    wallet = global_cfg.wallet
-    headline = "\n".join(
-        [
-            "[bold cyan]JARVIS ORCHESTRATOR[/bold cyan]",
-            "[bold white]Registration Watch[/bold white]",
-            (
-                f"Network [bold]{global_cfg.subtensor_network}[/bold] | "
-                f"source [bold]{global_cfg.price_source}[/bold] | "
-                f"data [bold]{global_cfg.data_dir}[/bold]"
-            ),
-            (
-                f"Watching [bold]{len(enabled)}[/bold] subnet(s) | "
-                f"auto-register [bold]{'ON' if auto_reg else 'OFF'}[/bold] | "
-                f"deregister watches [bold]{dereg_entries}[/bold]"
-            ),
-            (
-                f"Wallet [bold]{wallet.name}/{wallet.hotkey}[/bold] | "
-                f"alerts [bold]{', '.join(sorted(alert_channel_set)) or 'none'}[/bold]"
-            ),
-        ]
-    )
-    console.print(Panel.fit(headline, border_style="cyan"))
-
-    table = Table(title="Watched Subnets", show_lines=False)
-    table.add_column("SN", justify="right", style="cyan")
-    table.add_column("Name", style="white")
-    table.add_column("Threshold", justify="right", style="yellow")
-    table.add_column("Poll", justify="right")
-    table.add_column("Adaptive", justify="center")
-    table.add_column("Auto", justify="center")
-    table.add_column("Alerts", style="magenta")
-    table.add_column("Dereg", justify="right")
-    for subnet in enabled:
-        table.add_row(
-            str(subnet.netuid),
-            subnet.label,
-            f"{subnet.price_threshold_tao:.4f}",
-            f"{subnet.poll_interval_seconds}s",
-            "yes" if subnet.adaptive_polling else "no",
-            "yes" if subnet.auto_register else "no",
-            _alert_channels_label(subnet),
-            str(len(subnet.deregister_entries)),
-        )
-    console.print(table)
 
     if verbose:
+        wallet = global_cfg.wallet
+        headline = "\n".join(
+            [
+                "[bold cyan]JARVIS ORCHESTRATOR[/bold cyan]",
+                "[bold white]Registration Watch[/bold white]",
+                (
+                    f"Network [bold]{global_cfg.subtensor_network}[/bold] | "
+                    f"source [bold]{global_cfg.price_source}[/bold] | "
+                    f"data [bold]{global_cfg.data_dir}[/bold]"
+                ),
+                (
+                    f"Watching [bold]{len(enabled)}[/bold] subnet(s) | "
+                    f"auto-register [bold]{'ON' if auto_reg else 'OFF'}[/bold] | "
+                    f"deregister watches [bold]{dereg_entries}[/bold]"
+                ),
+                (
+                    f"Wallet [bold]{wallet.name}/{wallet.hotkey}[/bold] | "
+                    f"alerts [bold]{', '.join(sorted(alert_channel_set)) or 'none'}[/bold]"
+                ),
+            ]
+        )
+        console.print(Panel.fit(headline, border_style="cyan"))
+
+        table = Table(title="Watched Subnets", show_lines=False)
+        table.add_column("SN", justify="right", style="cyan")
+        table.add_column("Name", style="white")
+        table.add_column("Threshold", justify="right", style="yellow")
+        table.add_column("Poll", justify="right")
+        table.add_column("Adaptive", justify="center")
+        table.add_column("Auto", justify="center")
+        table.add_column("Alerts", style="magenta")
+        table.add_column("Dereg", justify="right")
+        for subnet in enabled:
+            table.add_row(
+                str(subnet.netuid),
+                subnet.label,
+                f"{subnet.price_threshold_tao:.4f}",
+                f"{subnet.poll_interval_seconds}s",
+                "yes" if subnet.adaptive_polling else "no",
+                "yes" if subnet.auto_register else "no",
+                _alert_channels_label(subnet),
+                str(len(subnet.deregister_entries)),
+            )
+        console.print(table)
         console.print("[dim]Verbose poll logs enabled. Press Ctrl+C to stop.[/dim]")
     else:
-        console.print(
-            "[dim]Running quietly. First chain poll can take ~15s. "
-            "Use -v for detailed poll logs. Press Ctrl+C to stop.[/dim]"
-        )
+        if not console.is_terminal:
+            console.print(
+                _build_monitor_watch_renderable(
+                    global_cfg,
+                    enabled,
+                    monitor_engine,
+                    dereg_monitor,
+                )
+            )
+        console.print("[dim]Running quiet live dashboard. First chain poll can take ~15s.[/dim]")
 
     async def _run_both():
         tasks = [asyncio.create_task(monitor_engine.start(), name="price-monitor")]
         if dereg_monitor.has_entries:
             tasks.append(asyncio.create_task(dereg_monitor.start(), name="dereg-monitor"))
-        await asyncio.gather(*tasks, return_exceptions=True)
+
+        live: Live | None = None
+        live_task: asyncio.Task | None = None
+
+        async def _refresh_live_dashboard() -> None:
+            assert live is not None
+            while True:
+                live.update(
+                    _build_monitor_watch_renderable(
+                        global_cfg,
+                        enabled,
+                        monitor_engine,
+                        dereg_monitor,
+                    ),
+                    refresh=True,
+                )
+                await asyncio.sleep(1)
+
+        try:
+            if not verbose and console.is_terminal:
+                live = Live(
+                    _build_monitor_watch_renderable(
+                        global_cfg,
+                        enabled,
+                        monitor_engine,
+                        dereg_monitor,
+                    ),
+                    console=console,
+                    refresh_per_second=2,
+                )
+                live.start()
+                live_task = asyncio.create_task(
+                    _refresh_live_dashboard(),
+                    name="monitor-dashboard",
+                )
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            if hasattr(monitor_engine, "stop"):
+                monitor_engine.stop()
+            if hasattr(dereg_monitor, "stop"):
+                dereg_monitor.stop()
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            if live_task is not None:
+                live_task.cancel()
+                await asyncio.gather(live_task, return_exceptions=True)
+            if live is not None:
+                live.stop()
 
     try:
         _run_async(_run_both())
@@ -1429,9 +1666,12 @@ def legacy_register(
 
 def _monitor_deregister_check_impl(ctx) -> None:
     """Check registration status of all configured deregister-watch hotkeys."""
+    from miner_tools.deregister import DeregisterMonitor
     from miner_tools.fetcher import close_subtensor, is_registered_sdk
 
     global_cfg, subnets = _load_monitor_config(ctx)
+    resolved_monitor = DeregisterMonitor(global_cfg, subnets)
+    resolved_subnets = resolved_monitor.subnets
 
     table = Table(title="Deregister Monitor Status", show_lines=True)
     table.add_column("SN", style="cyan", justify="right")
@@ -1441,7 +1681,7 @@ def _monitor_deregister_check_impl(ctx) -> None:
     table.add_column("Status", justify="center")
 
     found_any = False
-    for subnet in subnets:
+    for subnet in resolved_subnets:
         for entry in subnet.deregister_entries:
             found_any = True
             try:
@@ -1467,7 +1707,8 @@ def _monitor_deregister_check_impl(ctx) -> None:
         console.print(table)
     else:
         console.print(
-            "[dim]No deregister entries configured. Add `deregister` entries to config.yaml.[/dim]"
+            "[dim]No deregister watches are active. Enable `auto_register` "
+            "or add `deregister` entries to the monitor config.[/dim]"
         )
     close_subtensor()
 
@@ -1983,6 +2224,92 @@ def workstream_tasks(
 def sn13():
     """Subnet 13 operational commands."""
     pass
+
+
+@sn13.group("listener")
+def sn13_listener_group():
+    """SN13 listener runtime and capture commands."""
+    pass
+
+
+@sn13_listener_group.command("status")
+@click.option("--capture-dir", type=click.Path(path_type=Path), default=None)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
+def sn13_listener_status(capture_dir: Path | None, json_output: bool):
+    """Show SN13 listener process and capture status."""
+    capture_dir = capture_dir or _sn13_capture_dir()
+    state = _load_state(13)
+    running = bool(state.get("running")) and _is_pid_running(state.get("pid"))
+    summary = _load_capture_summary(capture_dir)
+
+    payload = {
+        "subnet": 13,
+        "running": running,
+        "pid": state.get("pid"),
+        "network": state.get("network"),
+        "wallet": state.get("wallet"),
+        "capture_dir": str(capture_dir),
+        "capture_summary": summary,
+    }
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    table = Table(title="SN13 Listener Status")
+    table.add_column("Fact", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Running", "yes" if running else "no")
+    table.add_row("PID", str(payload["pid"] or "-"))
+    table.add_row("Network", str(payload["network"] or "-"))
+    table.add_row("Wallet", str(payload["wallet"] or "-"))
+    table.add_row("Capture dir", str(capture_dir))
+    table.add_row("Total captures", str(summary.get("total_queries", 0)))
+    table.add_row(
+        "Query types",
+        ", ".join(sorted(summary.get("counts_by_query_type", {}).keys())) or "-",
+    )
+    table.add_row(
+        "Validators seen",
+        str(len(summary.get("counts_by_validator", {}))),
+    )
+    console.print(table)
+
+
+@sn13_listener_group.command("verify")
+@click.option("--capture-dir", type=click.Path(path_type=Path), default=None)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
+def sn13_listener_verify(capture_dir: Path | None, json_output: bool):
+    """Verify that live capture evidence covers the SN13 query surface."""
+    capture_dir = capture_dir or _sn13_capture_dir()
+    summary = _load_capture_summary(capture_dir)
+    observed = set(summary.get("counts_by_query_type", {}).keys())
+    required = {"GetMinerIndex", "GetDataEntityBucket", "GetContentsByBuckets"}
+    missing = sorted(required - observed)
+    payload = {
+        "capture_dir": str(capture_dir),
+        "total_queries": summary.get("total_queries", 0),
+        "observed_query_types": sorted(observed),
+        "required_query_types": sorted(required),
+        "missing_query_types": missing,
+        "verified": not missing and summary.get("total_queries", 0) > 0,
+    }
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        if not payload["verified"]:
+            raise SystemExit(2)
+        return
+
+    table = Table(title="SN13 Listener Capture Verification")
+    table.add_column("Fact", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Capture dir", str(capture_dir))
+    table.add_row("Total queries", str(payload["total_queries"]))
+    table.add_row("Observed query types", ", ".join(payload["observed_query_types"]) or "-")
+    table.add_row("Missing query types", ", ".join(missing) or "none")
+    table.add_row("Verified", "yes" if payload["verified"] else "no")
+    console.print(table)
+    if not payload["verified"]:
+        raise SystemExit(2)
 
 
 @sn13.group()
@@ -2608,6 +2935,7 @@ def sn13_readiness(
     db_path = db_path or _sn13_db_path()
     disk_path = disk_path or db_path.parent
     export_root = export_root or _sn13_export_root()
+    capture_dir = _sn13_capture_dir()
 
     state = _load_state(13)
     listener_running = bool(state.get("running")) and _is_pid_running(state.get("pid"))
@@ -2615,6 +2943,8 @@ def sn13_readiness(
     disk_free_gb = shutil.disk_usage(disk_path).free / GB
     db_healthy = SQLiteStorage(db_path).health_check()
     parquet_export_available = export_root.exists() and any(export_root.rglob("*.parquet"))
+    capture_summary = _load_capture_summary(capture_dir)
+    query_type_counts = capture_summary.get("counts_by_query_type", {})
 
     hotkey_registered = registered
     hotkey_address = None
@@ -2641,6 +2971,8 @@ def sn13_readiness(
         wallet_hotkey_can_sign=wallet_hotkey_can_sign,
         parquet_export_available=parquet_export_available,
         jarvis_archive_bucket_configured=bool(os.environ.get("JARVIS_SN13_ARCHIVE_S3_BUCKET")),
+        listener_capture_count=int(capture_summary.get("total_queries", 0)),
+        listener_query_types=tuple(sorted(query_type_counts.keys())),
     )
     report = evaluate_sn13_readiness(runtime=runtime, env=os.environ)
 
@@ -2664,6 +2996,9 @@ def sn13_readiness(
             "archive_bucket_configured": bool(
                 os.environ.get("JARVIS_SN13_ARCHIVE_S3_BUCKET")
             ),
+            "capture_dir": str(capture_dir),
+            "listener_capture_count": int(capture_summary.get("total_queries", 0)),
+            "listener_query_types": sorted(query_type_counts.keys()),
         },
         "checks": [
             {
@@ -2708,6 +3043,12 @@ def sn13_readiness(
     runtime_table.add_row("Database healthy", "yes" if db_healthy else "no")
     runtime_table.add_row("Free disk", f"{disk_free_gb:.1f} GB")
     runtime_table.add_row("Parquet exports", "present" if parquet_export_available else "missing")
+    runtime_table.add_row("Capture dir", str(capture_dir))
+    runtime_table.add_row("Listener captures", str(capture_summary.get("total_queries", 0)))
+    runtime_table.add_row(
+        "Observed query types",
+        ", ".join(sorted(query_type_counts.keys())) or "-",
+    )
     if chain_error:
         runtime_table.add_row("Chain check", f"[yellow]{chain_error}[/yellow]")
     console.print(runtime_table)

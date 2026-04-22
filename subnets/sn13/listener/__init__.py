@@ -1,1 +1,1 @@
-"""SN13 listener and orchestration helpers for Jarvis."""
+"""SN13 listener runtime, protocol bindings, and capture helpers for Jarvis."""

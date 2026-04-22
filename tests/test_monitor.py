@@ -278,3 +278,31 @@ class TestMonitorStateIntegration:
         ]
         monitor = _make_monitor(subnets)
         assert len(monitor.subnets) == 3
+
+
+class TestAutoRegisterGuardrails:
+    def test_auto_register_respects_max_spend(self):
+        monitor = _make_monitor(
+            [
+                _make_subnet(
+                    netuid=13,
+                    threshold=0.5,
+                    auto_register=True,
+                    max_spend_tao=0.2,
+                )
+            ]
+        )
+        subnet = monitor.subnets[0]
+        reading = PriceReading(
+            netuid=13,
+            cost_tao=0.3,
+            timestamp=datetime.now(timezone.utc),
+        )
+
+        import asyncio
+
+        asyncio.run(monitor._try_auto_register(subnet, reading))
+
+        result = monitor.last_registration_result[13]
+        assert result.success is False
+        assert result.error == "cost_above_max_spend"

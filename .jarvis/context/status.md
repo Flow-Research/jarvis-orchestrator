@@ -21,6 +21,12 @@
 - CI has been updated:
   - GitHub Actions test workflow runs `uv`, Docker verification, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
   - CircleCI config now uses Python 3.12, `uv`, `setup_remote_docker`, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
+- Mainnet deployment packaging now includes:
+  - `Dockerfile`
+  - `compose.yaml`
+  - `deploy/jarvis.mainnet.env`
+  - `deploy/monitor.mainnet.yaml`
+  - `docs/JARVIS_MAINNET_READINESS.md`
 - SN13 has been reset onto:
   - canonical miner models
   - operator intake models
@@ -80,13 +86,17 @@
   - root command prints the `JARVIS ORCHESTRATOR` banner
   - legacy registration monitor commands are restored under `jarvis-miner monitor ...`
   - root compatibility aliases are restored: `watch`, `price`, `status`, `info`, `register`, `deregister-check`, `validate`, `config-show`
-  - monitor watch now uses a modern quiet dashboard by default; `-v` enables detailed poll logs
+  - monitor watch now uses a live quiet dashboard by default; `-v` enables detailed poll logs
+  - monitor watch now keeps live burn cost, threshold state, auto-join state, and deregistration state visible in one screen
+  - auto-register now enforces `max_spend_tao` instead of treating it as documentation-only
+  - deregister monitoring now auto-tracks the Jarvis wallet hotkey on auto-register subnets when no explicit watch list is configured
   - DD operations default to real Gravity cache; `--sample-dd` is test/development only
   - cycle simulation uses DD parsing, planner, operator task contract, quality gate, SQLite, protocol adapter, and local parquet export
   - `cli/README.md` is now the canonical admin guide for install, command map, SN13 workflow, readiness, simulations, miner lifecycle, and troubleshooting
-- SN13 production listener runtime is not currently committed.
+- SN13 production listener runtime entrypoint is now committed.
   - The old experimental listener was removed because it decomposed validator requests into operator tasks.
-  - The next listener entrypoint must serve canonical SQLite through `protocol_adapter.py` and use `protocol_observer.py` only for capture.
+  - `subnets/sn13/listener/listener.py` now starts the axon-backed runtime.
+  - `subnets/sn13/listener/runtime.py` serves canonical SQLite through `protocol_adapter.py` and records captures through `protocol_observer.py`.
 - SN13 design docs have been hardened into a production architecture package:
   - glossary
   - end-to-end architecture
@@ -122,15 +132,27 @@
 - Admins can inspect workstream/runtime state through `jarvis-miner workstream status` and `jarvis-miner workstream tasks`.
 - Admins can publish planned SN13 tasks through `jarvis-miner sn13 plan publish`.
 - Admins can run automated DD refresh and economics-gated publication through `jarvis-miner sn13 scheduler run`.
+- Mainnet deployment files now exist:
+  - `Dockerfile`
+  - `compose.yaml`
+  - `deploy/jarvis.mainnet.env`
+  - `deploy/monitor.mainnet.yaml`
+  - `docs/JARVIS_MAINNET_READINESS.md`
+  - `scripts/run_sn13_listener.sh`
+- SN13 listener operations now include:
+  - `jarvis-miner sn13 listener status`
+  - `jarvis-miner sn13 listener verify`
+  - readiness warnings for missing live capture evidence
+  - optional `sn13-listener` compose profile for deployment wiring
 - Published SN13 tasks are open to all operators through the API; operators compete by submitting valid records until accepted-cap or expiry closes the task.
 - Workstream tasks now expose accepted progress instead of reservation state.
 - Planner-level economics refusal is now enforced before SN13 task publication.
-- Next active SN13 work is Jarvis archive upload, task visibility by capability, persistent accounting ledger, API edge rate limits, and live validator capture/runtime verification.
+- Next active SN13 work is Jarvis archive upload, task visibility by capability, persistent accounting ledger, API edge rate limits, live validator capture verification, and deployment/supervisor wiring for the committed listener runtime.
 
 ## Blockers
 
 - No hard blocker at the repo level.
-- Production readiness still depends on real validator capture data and a clean listener runtime entrypoint.
+- Production readiness still depends on real validator capture data and deployment verification of the committed listener runtime.
 - The configured wallet `sn13miner` is not registered and has `τ0` testnet balance; `sn13miner_nopw` is the registered testnet wallet currently in use.
 
 ## Constraints

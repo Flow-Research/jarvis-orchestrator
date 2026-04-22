@@ -49,7 +49,7 @@ Completed:
 
 Next active phase:
 
-- archive/upload pipeline, real listener runtime, and live validator capture
+- archive/upload pipeline and live validator capture verification
 
 ## Code Map
 

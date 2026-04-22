@@ -45,7 +45,6 @@ def test_obsolete_sn13_prototypes_and_vendored_docs_are_removed():
         "tests/test_sn13_decomposition.py",
         "subnets/sn13/decomposition.py",
         "subnets/sn13/monitor.py",
-        "subnets/sn13/listener/listener.py",
         "subnets/sn13/listener/sn13_decomposition.py",
         "subnets/sn13/listener/sn13_miner_listener.py",
         "tests/helpers.py",
@@ -54,6 +53,15 @@ def test_obsolete_sn13_prototypes_and_vendored_docs_are_removed():
 
     for relative_path in obsolete_paths:
         assert not (ROOT / relative_path).exists(), relative_path
+
+
+def test_sn13_listener_runtime_entrypoint_exists():
+    for relative_path in [
+        "subnets/sn13/listener/listener.py",
+        "subnets/sn13/listener/runtime.py",
+        "subnets/sn13/listener/protocol.py",
+    ]:
+        assert (ROOT / relative_path).exists(), relative_path
 
 
 def test_sn13_contract_uses_workstream_publish_and_intake_enforcement():
@@ -92,3 +100,38 @@ def test_cli_docs_are_admin_only():
         "personal operators use the workstream http api",
     ]:
         assert required in text
+
+
+def test_mainnet_readiness_doc_covers_costs_deployment_and_operator_split():
+    text = (ROOT / "docs" / "JARVIS_MAINNET_READINESS.md").read_text().casefold()
+
+    for required in [
+        "live cost snapshot",
+        "jarvis-owned requirements",
+        "personal operator requirements",
+        "why jarvis maintains its own archive s3",
+        "dockerfile",
+        "compose.yaml",
+        "registration-monitor",
+        "workstream-api",
+        "sn13-scheduler",
+        "mainnet blockers still open",
+    ]:
+        assert required in text
+
+
+def test_mainnet_deployment_files_exist_and_match_current_services():
+    assert (ROOT / "Dockerfile").exists()
+    assert (ROOT / "compose.yaml").exists()
+    assert (ROOT / "deploy" / "jarvis.mainnet.env").exists()
+    assert (ROOT / "deploy" / "monitor.mainnet.yaml").exists()
+    assert (ROOT / "scripts" / "run_sn13_scheduler.sh").exists()
+
+    compose_text = (ROOT / "compose.yaml").read_text().casefold()
+    for required in [
+        "registration-monitor",
+        "workstream-api",
+        "sn13-scheduler",
+        "jarvis-admin",
+    ]:
+        assert required in compose_text

@@ -304,7 +304,7 @@ Real Gravity/DD cache
 
 ## Phase 7B: Live Protocol Alignment
 
-Status: adapter implemented; live capture still required.
+Status: adapter and listener runtime implemented; live capture still required.
 
 ### Goal
 
@@ -331,7 +331,7 @@ Use real SN13 captures to tighten listener behavior and response shape.
 ### Exit criteria
 
 - adapter tests prove upstream field names and compressed index shape
-- listener behavior reflects live SN13 traffic, not mock assumptions
+- committed listener behavior reflects the grounded protocol adapter and is tightened by live SN13 traffic captures
 - real validator captures confirm request version, timeout, and payload shape
 
 ## Phase 8: Production Hardening

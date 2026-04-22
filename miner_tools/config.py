@@ -64,6 +64,47 @@ def _resolve_env(value: Any) -> Any:
     return value
 
 
+def _coerce_bool(value: Any, *, field_name: str) -> bool:
+    """Coerce YAML/env values to bool with explicit validation."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    raise ValueError(f"{field_name} must be a boolean-compatible value, got {value!r}")
+
+
+def _coerce_int(value: Any, *, field_name: str) -> int:
+    """Coerce YAML/env values to int with explicit validation."""
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be an integer, got {value!r}")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be an integer, got {value!r}") from exc
+    raise ValueError(f"{field_name} must be an integer, got {value!r}")
+
+
+def _coerce_float(value: Any, *, field_name: str) -> float:
+    """Coerce YAML/env values to float with explicit validation."""
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a number, got {value!r}")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be a number, got {value!r}") from exc
+    raise ValueError(f"{field_name} must be a number, got {value!r}")
+
+
 def _parse_alert_config(data: dict, fallback: AlertConfig | None = None) -> AlertConfig:
     """Parse alert configuration from dict.
 
@@ -151,11 +192,14 @@ def load_config(path: str | Path) -> tuple[GlobalConfig, list[SubnetConfig]]:
         taostats_api_key=g.get("taostats_api_key"),
         data_dir=Path(g.get("data_dir", "data")),
         log_level=g.get("log_level", "INFO"),
-        max_history_days=g.get("max_history_days", 30),
-        trend_window=g.get("trend_window", 6),
+        max_history_days=_coerce_int(g.get("max_history_days", 30), field_name="max_history_days"),
+        trend_window=_coerce_int(g.get("trend_window", 6), field_name="trend_window"),
         discord_username=g.get("discord_username", "Jarvis Miner"),
         discord_avatar_url=g.get("discord_avatar_url", ""),
-        alert_cooldown_seconds=g.get("alert_cooldown_seconds", 600),
+        alert_cooldown_seconds=_coerce_int(
+            g.get("alert_cooldown_seconds", 600),
+            field_name="alert_cooldown_seconds",
+        ),
         price_source=g.get("price_source", "sdk"),
         wallet=wallet_cfg,
     )
@@ -173,7 +217,8 @@ def load_config(path: str | Path) -> tuple[GlobalConfig, list[SubnetConfig]]:
     seen_netuids: set[int] = set()
 
     for entry in subnets_raw:
-        netuid = entry.get("netuid")
+        raw_netuid = entry.get("netuid")
+        netuid = None if raw_netuid is None else _coerce_int(raw_netuid, field_name="netuid")
         if netuid is None:
             raise ValueError(f"Subnet entry missing 'netuid': {entry}")
         if netuid in seen_netuids:
@@ -208,18 +253,52 @@ def load_config(path: str | Path) -> tuple[GlobalConfig, list[SubnetConfig]]:
         subnet_cfgs.append(
             SubnetConfig(
                 netuid=netuid,
-                price_threshold_tao=entry.get("price_threshold_tao", 0.5),
+                price_threshold_tao=_coerce_float(
+                    entry.get("price_threshold_tao", 0.5),
+                    field_name=f"subnets[{netuid}].price_threshold_tao",
+                ),
                 alerts=alerts,
-                poll_interval_seconds=entry.get("poll_interval_seconds", 300),
-                min_poll_interval_seconds=entry.get("min_poll_interval_seconds", 60),
-                max_spend_tao=entry.get("max_spend_tao"),
-                auto_register=entry.get("auto_register", False),
-                enabled=entry.get("enabled", True),
+                poll_interval_seconds=_coerce_int(
+                    entry.get("poll_interval_seconds", 300),
+                    field_name=f"subnets[{netuid}].poll_interval_seconds",
+                ),
+                min_poll_interval_seconds=_coerce_int(
+                    entry.get("min_poll_interval_seconds", 60),
+                    field_name=f"subnets[{netuid}].min_poll_interval_seconds",
+                ),
+                max_spend_tao=(
+                    _coerce_float(
+                        entry["max_spend_tao"],
+                        field_name=f"subnets[{netuid}].max_spend_tao",
+                    )
+                    if entry.get("max_spend_tao") is not None
+                    else None
+                ),
+                auto_register=_coerce_bool(
+                    entry.get("auto_register", False),
+                    field_name=f"subnets[{netuid}].auto_register",
+                ),
+                enabled=_coerce_bool(
+                    entry.get("enabled", True),
+                    field_name=f"subnets[{netuid}].enabled",
+                ),
                 nickname=entry.get("nickname"),
-                floor_detection=entry.get("floor_detection", True),
-                floor_window=entry.get("floor_window", 6),
-                adaptive_polling=entry.get("adaptive_polling", True),
-                near_threshold_multiplier=entry.get("near_threshold_multiplier", 1.5),
+                floor_detection=_coerce_bool(
+                    entry.get("floor_detection", True),
+                    field_name=f"subnets[{netuid}].floor_detection",
+                ),
+                floor_window=_coerce_int(
+                    entry.get("floor_window", 6),
+                    field_name=f"subnets[{netuid}].floor_window",
+                ),
+                adaptive_polling=_coerce_bool(
+                    entry.get("adaptive_polling", True),
+                    field_name=f"subnets[{netuid}].adaptive_polling",
+                ),
+                near_threshold_multiplier=_coerce_float(
+                    entry.get("near_threshold_multiplier", 1.5),
+                    field_name=f"subnets[{netuid}].near_threshold_multiplier",
+                ),
                 signal_file=entry.get("signal_file"),
                 deregister_entries=deregister_entries,
             )
