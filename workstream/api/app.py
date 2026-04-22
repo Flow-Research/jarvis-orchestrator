@@ -63,6 +63,14 @@ def _dashboard_summary(workstream: WorkstreamPort, tasks: list[WorkstreamTask]) 
     }
 
 
+def _status_tone(status: str) -> str:
+    return {
+        "open": "tone-open",
+        "completed": "tone-complete",
+        "cancelled": "tone-cancelled",
+    }.get(status, "tone-neutral")
+
+
 def _render_dashboard_html(
     *,
     summary: dict[str, int],
@@ -71,25 +79,44 @@ def _render_dashboard_html(
 ) -> str:
     rows = []
     for task in tasks:
+        status = task.status.value
+        target = _task_target_label(task)
+        remaining = max(task.acceptance_cap - task.accepted_count, 0)
+        progress = 0
+        if task.acceptance_cap > 0:
+            progress = min(int((task.accepted_count / task.acceptance_cap) * 100), 100)
         rows.append(
             "".join(
                 (
-                    "<tr>",
-                    f"<td>{escape(task.task_id)}</td>",
-                    f"<td>{escape(task.subnet)}</td>",
-                    f"<td>{escape(task.source)}</td>",
-                    f"<td>{escape(_task_target_label(task))}</td>",
-                    f"<td>{escape(task.status.value)}</td>",
-                    f"<td>{task.accepted_count}/{task.acceptance_cap}</td>",
-                    f"<td>{escape(task.created_at.isoformat())}</td>",
-                    "</tr>",
+                    "<article class='task-card'>",
+                    "<div class='task-topline'>",
+                    f"<div class='task-source'>{escape(task.source)}</div>",
+                    (
+                        f"<div class='task-status {escape(_status_tone(status))}'>"
+                        f"{escape(status)}</div>"
+                    ),
+                    "</div>",
+                    f"<h3>{escape(target)}</h3>",
+                    "<div class='task-meta'>",
+                    f"<span><strong>ID</strong> <code>{escape(task.task_id)}</code></span>",
+                    f"<span><strong>Subnet</strong> {escape(task.subnet)}</span>",
+                    f"<span><strong>Created</strong> {escape(task.created_at.isoformat())}</span>",
+                    "</div>",
+                    "<div class='progress-head'>",
+                    f"<span>{task.accepted_count}/{task.acceptance_cap} accepted</span>",
+                    f"<span>{remaining} remaining</span>",
+                    "</div>",
+                    (
+                        "<div class='progress-track'>"
+                        f"<div class='progress-fill' style='width: {progress}%;'></div>"
+                        "</div>"
+                    ),
+                    "</article>",
                 )
             )
         )
     if not rows:
-        rows.append(
-            "<tr><td colspan='7' class='empty'>No tasks published yet.</td></tr>"
-        )
+        rows.append("<div class='empty'>No tasks published yet.</div>")
 
     auth_state = "required" if auth_enabled else "disabled"
     return f"""<!doctype html>
@@ -101,138 +128,336 @@ def _render_dashboard_html(
   <style>
     :root {{
       color-scheme: light;
-      --bg: #f3f0e8;
-      --panel: #fffdf8;
-      --ink: #1f2937;
-      --muted: #5b6470;
-      --line: #d9d2c2;
-      --accent: #0f766e;
-      --accent-soft: #d7f0eb;
-      --warn: #92400e;
-      --warn-soft: #fff1d6;
+      --bg: #f5efe4;
+      --bg-deep: #10323c;
+      --panel: rgba(255, 251, 245, 0.88);
+      --panel-strong: #fffaf2;
+      --ink: #14222f;
+      --muted: #5a6876;
+      --line: rgba(20, 34, 47, 0.10);
+      --accent: #d86d3f;
+      --accent-2: #0f766e;
+      --accent-3: #1c4e80;
+      --open-bg: #dff7ef;
+      --open-ink: #0f766e;
+      --complete-bg: #dcecff;
+      --complete-ink: #24518a;
+      --cancel-bg: #f8e1d8;
+      --cancel-ink: #9f4126;
+      --neutral-bg: #ebe6dc;
+      --neutral-ink: #6a5a46;
+      --shadow: 0 18px 40px rgba(20, 34, 47, 0.08);
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 28%),
-        linear-gradient(180deg, #f7f3ea 0%, var(--bg) 100%);
+        radial-gradient(circle at top left, rgba(216, 109, 63, 0.22), transparent 26%),
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.18), transparent 24%),
+        linear-gradient(180deg, #f9f3e7 0%, var(--bg) 48%, #efe6d8 100%);
       color: var(--ink);
     }}
     main {{
-      max-width: 1120px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 32px 20px 56px;
+      padding: 28px 20px 56px;
+    }}
+    .hero-shell {{
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 28px;
+      padding: 28px;
+      margin-bottom: 24px;
+      background:
+        linear-gradient(135deg, rgba(16, 50, 60, 0.96), rgba(28, 78, 128, 0.92));
+      color: #f9f4eb;
+      box-shadow: var(--shadow);
+    }}
+    .hero-shell::before {{
+      content: "";
+      position: absolute;
+      inset: auto -80px -100px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(216, 109, 63, 0.22);
+      filter: blur(4px);
     }}
     .hero {{
+      position: relative;
       display: grid;
-      gap: 12px;
-      margin-bottom: 24px;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
+      gap: 24px;
     }}
     .eyebrow {{
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: #ffc7aa;
     }}
     h1 {{
-      margin: 0;
-      font-size: clamp(32px, 5vw, 56px);
-      line-height: 0.95;
+      margin: 6px 0 0;
+      font-size: clamp(34px, 5vw, 68px);
+      line-height: 0.9;
       letter-spacing: -0.04em;
     }}
     .sub {{
       max-width: 760px;
-      color: var(--muted);
+      color: rgba(249, 244, 235, 0.82);
       font-size: 16px;
-      line-height: 1.55;
+      line-height: 1.6;
+      margin-top: 12px;
     }}
     .summary {{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 12px;
-      margin: 24px 0 28px;
+      margin: 0;
     }}
     .card {{
-      background: var(--panel);
-      border: 1px solid var(--line);
+      background: rgba(255, 251, 245, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 18px;
       padding: 18px;
-      box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
+      backdrop-filter: blur(8px);
     }}
     .label {{
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: rgba(249, 244, 235, 0.68);
     }}
     .value {{
       margin-top: 8px;
-      font-size: 28px;
+      font-size: 34px;
       font-weight: 700;
       letter-spacing: -0.04em;
     }}
     .note {{
       margin-top: 6px;
-      color: var(--muted);
+      color: rgba(249, 244, 235, 0.72);
       font-size: 13px;
     }}
-    .bar {{
-      display: flex;
-      flex-wrap: wrap;
+    .hero-rail {{
+      display: grid;
       gap: 12px;
-      margin-bottom: 18px;
+      align-content: start;
     }}
-    .pill {{
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      padding: 10px 14px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      font-size: 14px;
-    }}
-    .pill strong {{ color: var(--ink); }}
-    .hint {{
-      background: var(--warn-soft);
-      border: 1px solid #efd6a3;
-      color: var(--warn);
-      border-radius: 16px;
-      padding: 14px 16px;
-      margin-bottom: 20px;
-      line-height: 1.5;
-    }}
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--panel);
-      border: 1px solid var(--line);
+    .rail-card {{
+      background: rgba(255, 251, 245, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 18px;
-      overflow: hidden;
-      box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
+      padding: 16px 18px;
+      backdrop-filter: blur(8px);
     }}
-    th, td {{
-      text-align: left;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      vertical-align: top;
-    }}
-    th {{
+    .rail-title {{
       font-size: 12px;
+      font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
-      background: #f8f4eb;
+      color: rgba(249, 244, 235, 0.62);
+      margin-bottom: 10px;
     }}
-    tr:last-child td {{ border-bottom: none; }}
+    .rail-list {{
+      display: grid;
+      gap: 8px;
+    }}
+    .rail-item {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      font-size: 14px;
+    }}
+    .rail-item strong,
+    .rail-item code {{
+      color: #fff8ef;
+    }}
+    .rail-copy {{
+      color: rgba(249, 244, 235, 0.76);
+      line-height: 1.55;
+      font-size: 14px;
+    }}
+    .surface {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.85fr);
+      gap: 18px;
+      align-items: start;
+    }}
+    .tasks-panel,
+    .side-panel {{
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }}
+    .panel-head {{
+      padding: 22px 24px 14px;
+      border-bottom: 1px solid var(--line);
+    }}
+    .panel-title {{
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }}
+    .panel-copy {{
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }}
+    .task-grid {{
+      display: grid;
+      gap: 14px;
+      padding: 18px 20px 20px;
+    }}
+    .task-card {{
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(20, 34, 47, 0.05);
+    }}
+    .task-topline {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }}
+    .task-source {{
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+    }}
+    .task-card h3 {{
+      margin: 0 0 10px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }}
+    .task-status {{
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }}
+    .tone-open {{
+      background: var(--open-bg);
+      color: var(--open-ink);
+    }}
+    .tone-complete {{
+      background: var(--complete-bg);
+      color: var(--complete-ink);
+    }}
+    .tone-cancelled {{
+      background: var(--cancel-bg);
+      color: var(--cancel-ink);
+    }}
+    .tone-neutral {{
+      background: var(--neutral-bg);
+      color: var(--neutral-ink);
+    }}
+    .task-meta {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }}
+    .task-meta strong {{
+      color: var(--ink);
+      font-weight: 600;
+    }}
+    .progress-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }}
+    .progress-track {{
+      position: relative;
+      height: 10px;
+      border-radius: 999px;
+      background: #e7ddcc;
+      overflow: hidden;
+    }}
+    .progress-fill {{
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    }}
+    .side-stack {{
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+    }}
+    .info-card {{
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }}
+    .info-title {{
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+    }}
+    .info-copy {{
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }}
+    .endpoint-list {{
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }}
+    .endpoint {{
+      display: grid;
+      gap: 4px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #f5ecdf;
+      border: 1px solid #eadcc7;
+    }}
+    .endpoint code {{
+      color: var(--ink);
+      font-weight: 600;
+    }}
+    .hint {{
+      background: linear-gradient(135deg, #fff0dc, #f9dfcf);
+      border: 1px solid #efc59f;
+      color: #8d4e20;
+      border-radius: 18px;
+      padding: 16px;
+      line-height: 1.5;
+    }}
     .empty {{
       color: var(--muted);
       text-align: center;
       padding: 28px;
+      background: var(--panel-strong);
+      border: 1px dashed #d8cab2;
+      border-radius: 18px;
     }}
     .footer {{
       margin-top: 18px;
@@ -243,80 +468,153 @@ def _render_dashboard_html(
       font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
       font-size: 0.92em;
     }}
+    @media (max-width: 980px) {{
+      .hero,
+      .surface {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+    @media (max-width: 720px) {{
+      main {{
+        padding: 18px 14px 36px;
+      }}
+      .hero-shell {{
+        padding: 20px;
+      }}
+      .task-card h3 {{
+        font-size: 20px;
+      }}
+      .task-topline,
+      .progress-head {{
+        flex-direction: column;
+        align-items: flex-start;
+      }}
+    }}
   </style>
 </head>
 <body>
   <main>
-    <section class="hero">
-      <div class="eyebrow">Jarvis Orchestrator</div>
-      <h1>Workstream Runtime</h1>
-      <div class="sub">
-        Human-readable runtime view for the Jarvis workstream.
-        Personal operators still use the signed HTTP API for task
-        discovery and submission.
-      </div>
+    <section class="hero-shell">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Jarvis Orchestrator</div>
+          <h1>Workstream Runtime</h1>
+          <div class="sub">
+            Human-readable runtime view for the Jarvis workstream.
+            Personal operators still use the signed HTTP API for task
+            discovery and submission.
+          </div>
+        </div>
+        <aside class="hero-rail">
+          <section class="rail-card">
+            <div class="rail-title">Live Surface</div>
+            <div class="rail-list">
+              <div class="rail-item"><span>Health</span> <code>/health</code></div>
+              <div class="rail-item"><span>Tasks</span> <code>/v1/tasks</code></div>
+              <div class="rail-item"><span>Submit</span> <code>/v1/submissions</code></div>
+              <div class="rail-item"><span>Auth</span> <strong>{auth_state}</strong></div>
+            </div>
+          </section>
+          <section class="rail-card">
+            <div class="rail-title">Operating Rule</div>
+            <div class="rail-copy">
+              Jarvis publishes work. Operators compete on the same open tasks.
+              Intake decides what becomes canonical miner truth.
+            </div>
+          </section>
+        </aside>
+      </section>
+      <section class="summary">
+        <article class="card">
+          <div class="label">Total Tasks</div>
+          <div class="value">{summary["total_tasks"]}</div>
+          <div class="note">All durable workstream tasks</div>
+        </article>
+        <article class="card">
+          <div class="label">Open Tasks</div>
+          <div class="value">{summary["open_tasks"]}</div>
+          <div class="note">Tasks still accepting valid submissions</div>
+        </article>
+        <article class="card">
+          <div class="label">Available Now</div>
+          <div class="value">{summary["available_now"]}</div>
+          <div class="note">Open and not yet full or expired</div>
+        </article>
+        <article class="card">
+          <div class="label">Completed</div>
+          <div class="value">{summary["completed_tasks"]}</div>
+          <div class="note">Tasks closed by cap or completion</div>
+        </article>
+        <article class="card">
+          <div class="label">Cancelled</div>
+          <div class="value">{summary["cancelled_tasks"]}</div>
+          <div class="note">Tasks closed without completion</div>
+        </article>
+      </section>
     </section>
 
-    <section class="summary">
-      <article class="card">
-        <div class="label">Total Tasks</div>
-        <div class="value">{summary["total_tasks"]}</div>
-        <div class="note">All durable workstream tasks</div>
-      </article>
-      <article class="card">
-        <div class="label">Open Tasks</div>
-        <div class="value">{summary["open_tasks"]}</div>
-        <div class="note">Tasks still accepting valid submissions</div>
-      </article>
-      <article class="card">
-        <div class="label">Available Now</div>
-        <div class="value">{summary["available_now"]}</div>
-        <div class="note">Open and not yet full or expired</div>
-      </article>
-      <article class="card">
-        <div class="label">Completed</div>
-        <div class="value">{summary["completed_tasks"]}</div>
-        <div class="note">Tasks closed by cap or completion</div>
-      </article>
-      <article class="card">
-        <div class="label">Cancelled</div>
-        <div class="value">{summary["cancelled_tasks"]}</div>
-        <div class="note">Tasks closed without completion</div>
-      </article>
+    <section class="surface">
+      <section class="tasks-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Open Demand Surface</h2>
+          <div class="panel-copy">
+            The dashboard is read-only. It shows the runtime state humans
+            need to inspect while operators continue to use the signed API.
+          </div>
+        </div>
+        <div class="task-grid">
+          {''.join(rows)}
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Runtime Notes</h2>
+          <div class="panel-copy">
+            This view is intentionally separate from the operator contract.
+          </div>
+        </div>
+        <div class="side-stack">
+          <section class="hint">
+            This page does not accept uploads and it does not bypass signed
+            operator requests.
+          </section>
+          <section class="info-card">
+            <h3 class="info-title">Human Checks</h3>
+            <div class="info-copy">
+              Use this page to inspect current task pressure, accepted
+              progress, runtime auth mode, and whether published work exists
+              at all.
+            </div>
+          </section>
+          <section class="info-card">
+            <h3 class="info-title">Operator Surface</h3>
+            <div class="endpoint-list">
+              <div class="endpoint">
+                <code>GET /v1/tasks</code>
+                <div class="info-copy">List open tasks.</div>
+              </div>
+              <div class="endpoint">
+                <code>GET /v1/tasks/&#123;task_id&#125;</code>
+                <div class="info-copy">Inspect one task contract.</div>
+              </div>
+              <div class="endpoint">
+                <code>POST /v1/submissions</code>
+                <div class="info-copy">Submit candidate records.</div>
+              </div>
+              <div class="endpoint">
+                <code>GET /v1/operators/&#123;operator_id&#125;/stats</code>
+                <div class="info-copy">Read quality counters.</div>
+              </div>
+            </div>
+          </section>
+          <div class="footer">
+            Use the signed API for operator work. This page is for human
+            runtime inspection only.
+          </div>
+        </div>
+      </aside>
     </section>
-
-    <section class="bar">
-      <div class="pill"><strong>Health</strong> <code>/health</code></div>
-      <div class="pill"><strong>Task API</strong> <code>/v1/tasks</code></div>
-      <div class="pill"><strong>Submission API</strong> <code>/v1/submissions</code></div>
-      <div class="pill"><strong>Auth</strong> {auth_state}</div>
-    </section>
-
-    <section class="hint">
-      This page is read-only. It does not bypass the signed operator API
-      and it does not accept submissions.
-    </section>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Task</th>
-          <th>Subnet</th>
-          <th>Source</th>
-          <th>Target</th>
-          <th>Status</th>
-          <th>Accepted</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        {''.join(rows)}
-      </tbody>
-    </table>
-
-    <div class="footer">
-      Use the signed API for operator work. This page is for human runtime inspection only.
-    </div>
   </main>
 </body>
 </html>"""
