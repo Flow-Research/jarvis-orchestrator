@@ -122,12 +122,12 @@ def test_mainnet_readiness_doc_covers_costs_deployment_and_operator_split():
 
 def test_mainnet_deployment_files_exist_and_match_current_services():
     assert (ROOT / "Dockerfile").exists()
-    assert (ROOT / "compose.yaml").exists()
+    assert (ROOT / "docker-compose.yaml").exists()
     assert (ROOT / "deploy" / "jarvis.mainnet.env").exists()
     assert (ROOT / "deploy" / "monitor.mainnet.yaml").exists()
     assert (ROOT / "scripts" / "run_sn13_scheduler.sh").exists()
 
-    compose_text = (ROOT / "compose.yaml").read_text().casefold()
+    compose_text = (ROOT / "docker-compose.yaml").read_text().casefold()
     for required in [
         "registration-monitor",
         "workstream-api",
