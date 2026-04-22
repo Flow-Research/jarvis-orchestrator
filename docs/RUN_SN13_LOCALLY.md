@@ -43,7 +43,7 @@ Jarvis admin uses:
 Personal operators use:
 
 - the workstream HTTP API
-- the published operator skill at [docs/skills/jarvis-workstream/SKILL.md](/home/abiorh/flow/jarvis-orchestrator/docs/skills/jarvis-workstream/SKILL.md)
+- the published operator skill at `docs/skills/jarvis-workstream/SKILL.md`
 
 Personal operators do not use the Jarvis admin CLI.
 
@@ -170,7 +170,7 @@ JARVIS_OPERATOR_SECRET=change-me
 
 Then give the operator the published skill:
 
-- [docs/skills/jarvis-workstream/SKILL.md](/home/abiorh/flow/jarvis-orchestrator/docs/skills/jarvis-workstream/SKILL.md)
+- `docs/skills/jarvis-workstream/SKILL.md`
 
 That skill tells the operator how to:
 
