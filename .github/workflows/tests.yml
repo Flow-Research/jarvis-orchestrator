@@ -33,32 +33,29 @@ jobs:
       - name: Verify Docker for Testcontainers
         run: docker info
 
-      - name: Run unit tests
+      - name: Run lint
         run: |
-          uv run pytest -q \
+          uv run ruff check \
+            cli/main.py \
+            workstream \
+            subnets/sn13 \
             tests/test_cli.py \
-            tests/test_engineering_governance.py \
             tests/test_workstream.py \
-            tests/test_operator_api.py \
-            tests/test_sn13_export.py \
-            tests/test_sn13_protocol_adapter.py \
-            tests/test_sn13_storage.py \
-            tests/test_sn13_tasks.py \
-            tests/test_sn13_planner.py \
-            tests/test_sn13_quality.py \
-            tests/test_sn13_desirability.py \
-            tests/test_sn13_policy.py \
-            tests/test_sn13_contract.py \
-            tests/test_sn13_protocol_observer.py \
-            tests/test_sn13_economics.py \
-            tests/test_sn13_gravity.py \
-            tests/test_sn13_readiness.py \
-            tests/test_sn13_simulator.py \
-            tests/test_sn13_workstream.py \
-            --cov=operator_api \
+            tests/test_workstream_api.py \
+            tests/test_sn13_*.py \
+            tests/test_engineering_governance.py \
+            scripts/validate_external_skills.py
+
+      - name: Validate external operator skills
+        run: uv run python scripts/validate_external_skills.py
+
+      - name: Run unit tests with coverage gate
+        run: |
+          uv run pytest -q tests -m 'not integration' \
             --cov=subnets.sn13 \
             --cov=workstream \
-            --cov-report=term-missing
+            --cov-report=term-missing \
+            -W error::ResourceWarning
 
       - name: Run Testcontainers integration tests
         run: uv run pytest -q -m integration tests/test_sn13_testcontainers.py

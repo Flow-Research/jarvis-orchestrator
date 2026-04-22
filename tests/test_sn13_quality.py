@@ -65,7 +65,10 @@ def test_quality_rejects_missing_source_specific_fields():
     )
 
     assert result.status == SubmissionStatus.REJECTED
-    assert any(reason.startswith(RejectionReason.MISSING_SOURCE_FIELD.value) for reason in result.reasons)
+    assert any(
+        reason.startswith(RejectionReason.MISSING_SOURCE_FIELD.value)
+        for reason in result.reasons
+    )
 
 
 def test_storage_records_rejections_duplicates_and_operator_stats(tmp_path):

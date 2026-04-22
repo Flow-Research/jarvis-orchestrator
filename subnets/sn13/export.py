@@ -9,12 +9,12 @@ parquet artifacts and path metadata that an uploader can hand to the SN13 API.
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
-import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Avoid pyarrow wheels selecting CPU instructions unavailable on some hosts.
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
@@ -103,11 +103,11 @@ class SN13ExportJob(BaseModel):
 
     job_id: str = Field(..., min_length=1, max_length=128)
     source: DataSource
-    label: Optional[str] = Field(default=None, max_length=140)
-    keyword: Optional[str] = Field(default=None, max_length=140)
-    start_time_bucket: Optional[int] = Field(default=None, ge=0)
-    end_time_bucket: Optional[int] = Field(default=None, ge=0)
-    max_rows: Optional[int] = Field(default=None, ge=1)
+    label: str | None = Field(default=None, max_length=140)
+    keyword: str | None = Field(default=None, max_length=140)
+    start_time_bucket: int | None = Field(default=None, ge=0)
+    end_time_bucket: int | None = Field(default=None, ge=0)
+    max_rows: int | None = Field(default=None, ge=1)
 
     @field_validator("label")
     @classmethod
@@ -124,8 +124,8 @@ class SN13ExportJob(BaseModel):
         cls,
         job: DesirabilityJob,
         *,
-        max_rows: Optional[int] = None,
-    ) -> "SN13ExportJob":
+        max_rows: int | None = None,
+    ) -> SN13ExportJob:
         return cls(
             job_id=job.job_id,
             source=job.source,
@@ -147,7 +147,11 @@ class SN13ExportJob(BaseModel):
         content = _content_dict(entity)
         if self.label is not None and not _label_matches(self.source, self.label, entity, content):
             return False
-        if self.keyword is not None and self.keyword not in _search_text(self.source, entity, content):
+        if self.keyword is not None and self.keyword not in _search_text(
+            self.source,
+            entity,
+            content,
+        ):
             return False
         return True
 
@@ -160,12 +164,12 @@ class ExportResult(BaseModel):
     job_id: str
     source: DataSource
     row_count: int = Field(..., ge=0)
-    file_path: Optional[Path] = None
-    filename: Optional[str] = None
-    s3_relative_path: Optional[str] = None
-    s3_logical_path: Optional[str] = None
+    file_path: Path | None = None
+    filename: str | None = None
+    s3_relative_path: str | None = None
+    s3_logical_path: str | None = None
     skipped: bool = False
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class SN13ParquetExporter:
@@ -186,8 +190,8 @@ class SN13ParquetExporter:
         self,
         job: SN13ExportJob,
         *,
-        now: Optional[datetime] = None,
-        hex_token: Optional[str] = None,
+        now: datetime | None = None,
+        hex_token: str | None = None,
     ) -> ExportResult:
         entities = self.storage.list_entities(
             source=job.source,
@@ -236,8 +240,8 @@ class SN13ParquetExporter:
 def build_export_filename(
     *,
     record_count: int,
-    now: Optional[datetime] = None,
-    hex_token: Optional[str] = None,
+    now: datetime | None = None,
+    hex_token: str | None = None,
 ) -> str:
     if record_count < 0:
         raise ValueError("record_count must be non-negative")
@@ -273,7 +277,9 @@ def expected_columns_for_source(source: DataSource) -> tuple[str, ...]:
         return EXPECTED_COLUMNS_X
     if source == DataSource.REDDIT:
         return EXPECTED_COLUMNS_REDDIT
-    raise UnsupportedExportSourceError(f"No confirmed SN13 export schema for source: {source.value}")
+    raise UnsupportedExportSourceError(
+        f"No confirmed SN13 export schema for source: {source.value}"
+    )
 
 
 def build_export_rows(entities: list[DataEntity], source: DataSource) -> list[dict[str, Any]]:
@@ -281,7 +287,9 @@ def build_export_rows(entities: list[DataEntity], source: DataSource) -> list[di
         return [_x_row(entity) for entity in entities]
     if source == DataSource.REDDIT:
         return [_reddit_row(entity) for entity in entities]
-    raise UnsupportedExportSourceError(f"No confirmed SN13 export schema for source: {source.value}")
+    raise UnsupportedExportSourceError(
+        f"No confirmed SN13 export schema for source: {source.value}"
+    )
 
 
 def write_parquet_rows(path: Path, rows: list[dict[str, Any]], columns: tuple[str, ...]) -> None:
@@ -397,7 +405,9 @@ def _label_matches(
             content.get("communityName"),
             content.get("subreddit"),
         ]
-        return any(_strip_reddit_prefix(candidate) == target for candidate in candidates if candidate)
+        return any(
+            _strip_reddit_prefix(candidate) == target for candidate in candidates if candidate
+        )
 
     return normalize_label(desired_label) == entity.label
 

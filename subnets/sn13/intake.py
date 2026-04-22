@@ -6,7 +6,7 @@ Operator intake models and normalization for SN13.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -29,8 +29,8 @@ class SubmissionProvenance(BaseModel):
 
     scraper_id: str = Field(..., min_length=1, max_length=128)
     query_type: str = Field(..., min_length=1, max_length=64)
-    query_value: Optional[str] = Field(default=None, max_length=256)
-    job_id: Optional[str] = Field(default=None, max_length=128)
+    query_value: str | None = Field(default=None, max_length=256)
+    job_id: str | None = Field(default=None, max_length=128)
 
 
 class OperatorSubmission(BaseModel):
@@ -43,7 +43,7 @@ class OperatorSubmission(BaseModel):
     submission_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, max_length=128)
     operator_id: str = Field(..., min_length=1, max_length=64)
     source: DataSource
-    label: Optional[str] = Field(default=None, max_length=140)
+    label: str | None = Field(default=None, max_length=140)
     uri: str = Field(..., min_length=1)
     source_created_at: datetime
     scraped_at: datetime

@@ -13,7 +13,7 @@ Jarvis does not publish real paid operator work unless these facts are explicit:
 - what storage/export path is used
 - what validation risk can zero the reward
 
-Unknown economics means blocked production assignment. Unknown economics is not an assumption.
+Unknown economics means blocked production publication. Unknown economics is not an assumption.
 
 ## Direct Answers
 
@@ -51,7 +51,7 @@ Jarvis pays:
 
 ### When do we know how much we are paid?
 
-Final miner revenue is not known at task assignment time.
+Final miner revenue is not known at task publication time.
 
 Bittensor emissions are distributed after subnet scoring/consensus. SN13 also gates reward on validation. Therefore:
 
@@ -233,7 +233,7 @@ expected_margin =
   - risk_reserve
 ```
 
-Jarvis does not publish or auto-assign a task when:
+Jarvis does not publish a task when:
 
 ```text
 expected_margin < 0
@@ -435,7 +435,7 @@ Minimum policy:
 - rejected records are not payable
 - records outside task window are not payable
 - source payload mismatch is not payable
-- repeated low quality reduces assignment priority
+- repeated low quality reduces publication priority
 - validation failure can claw back or reserve payout under the task contract
 
 ## Source-Specific Economic Notes
@@ -552,7 +552,7 @@ No new feature work until these foundations are complete:
 
 5. Readiness/planner economics integration - done
 
-   Economics gates must refuse real task assignment when required cost, quality, and margin inputs are missing.
+   Economics gates must refuse real task publication when required cost, quality, and margin inputs are missing.
 
 6. Runtime metrics - pending
 
@@ -564,7 +564,7 @@ No new feature work until these foundations are complete:
 
 ## Production Blocker Ledger
 
-These values are required before automated paid assignment. They are not optional and they must not be guessed.
+These values are required before automated paid publication. They are not optional and they must not be guessed.
 
 | Required value | Current status |
 | --- | --- |

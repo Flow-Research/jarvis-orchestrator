@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-
 MAX_DEPTH = 5
 MAX_ITEMS = 25
 
@@ -104,7 +103,10 @@ class ProtocolObserver:
         if not self._counts_by_type:
             return "No queries captured yet."
 
-        parts = [f"{query_type}={count}" for query_type, count in sorted(self._counts_by_type.items())]
+        parts = [
+            f"{query_type}={count}"
+            for query_type, count in sorted(self._counts_by_type.items())
+        ]
         return f"Captured {sum(self._counts_by_type.values())} queries | " + ", ".join(parts)
 
     def _persist_observation(self, observation: QueryObservation) -> None:
@@ -141,7 +143,10 @@ class ProtocolObserver:
             "counts_by_validator": dict(sorted(self._counts_by_validator.items())),
             "recent_queries": self._recent,
         }
-        self.summary_file.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+        self.summary_file.write_text(
+            json.dumps(summary, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
 
 
 def extract_payload(public_attrs: dict[str, Any]) -> dict[str, Any]:
@@ -162,7 +167,8 @@ def extract_payload(public_attrs: dict[str, Any]) -> dict[str, Any]:
         for key, value in public_attrs.items()
         if key not in ignored and not key.endswith("_headers")
     }
-    return json_safe(payload) if isinstance(json_safe(payload), dict) else {"value": json_safe(payload)}
+    safe_payload = json_safe(payload)
+    return safe_payload if isinstance(safe_payload, dict) else {"value": safe_payload}
 
 
 def extract_public_attributes(value: Any) -> dict[str, Any]:
@@ -201,7 +207,10 @@ def extract_validator_hotkey(synapse: Any, public_attrs: dict[str, Any] | None =
     return "unknown"
 
 
-def extract_timeout_seconds(synapse: Any, public_attrs: dict[str, Any] | None = None) -> float | None:
+def extract_timeout_seconds(
+    synapse: Any,
+    public_attrs: dict[str, Any] | None = None,
+) -> float | None:
     """Best-effort extraction of any timeout carried on the request."""
     public_attrs = public_attrs or extract_public_attributes(synapse)
     candidates = [public_attrs.get("timeout")]

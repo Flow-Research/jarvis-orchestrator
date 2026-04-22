@@ -134,7 +134,7 @@ Responsibilities:
 - rank work by desirability weight, source weight, and freshness
 - emit deterministic `OperatorDemand`
 
-Planner output is the source of truth for operator scrape assignments.
+Planner output is the source of truth for open workstream demand.
 
 ### 4. Operator Task Runtime
 
@@ -300,7 +300,7 @@ The task contract is the permission boundary. Jarvis does not need a separate pr
 2. Jarvis builds index from canonical SQLite rows.
 3. Validator selects bucket and requests data.
 4. Jarvis returns canonical entities from storage.
-5. Validator verifies data and assigns score/credibility impact.
+5. Validator verifies data and computes score/credibility impact.
 
 ### Export Flow
 
@@ -323,7 +323,7 @@ The current implementation guarantees:
 - invalid operator submissions are rejected and audited
 - planner demand is based on desirability and current coverage
 - operational DD planning defaults to real Gravity cache, not sample records
-- planner assignment is currently gated to X and Reddit because those are the confirmed operator/export paths
+- planner publication currently supports X and Reddit because those are the confirmed validation/export paths
 - local operator runtime writes through quality checks
 - operator workstream contracts include source requirements and acceptance windows
 - operator workstream contracts include upload limits and payout economics

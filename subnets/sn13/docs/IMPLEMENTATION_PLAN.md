@@ -297,7 +297,7 @@ Real Gravity/DD cache
 - local cycle creates operator tasks from DD
 - real Gravity cache is the default source for DD commands
 - built-in DD samples are explicit `--sample-dd` development fixtures only
-- planner assignment is source-gated to confirmed X and Reddit paths
+- planner publication currently supports confirmed X and Reddit paths
 - accepted operator submissions are stored in SQLite
 - validator bucket simulation returns stored data through protocol adapter fields
 - export artifacts are created from canonical storage

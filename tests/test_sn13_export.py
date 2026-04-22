@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
 
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 import pyarrow.parquet as pq
@@ -7,19 +7,18 @@ import pyarrow.parquet as pq
 from subnets.sn13.export import (
     EXPECTED_COLUMNS_REDDIT,
     EXPECTED_COLUMNS_X,
-    UnsupportedExportSourceError,
     SN13ExportJob,
     SN13ParquetExporter,
+    UnsupportedExportSourceError,
     build_export_filename,
-    extract_record_count_from_filename,
     expected_columns_for_source,
+    extract_record_count_from_filename,
     is_valid_export_filename,
     validate_filename_row_count,
 )
 from subnets.sn13.intake import OperatorSubmission, SubmissionProvenance
 from subnets.sn13.models import DataSource, time_bucket_from_datetime
 from subnets.sn13.storage import SQLiteStorage
-
 
 NOW = datetime(2026, 4, 21, 12, 30, tzinfo=timezone.utc)
 

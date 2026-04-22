@@ -122,7 +122,7 @@ class S3ArchiveCostEstimate(BaseModel):
 
 
 class TaskEconomicsInput(BaseModel):
-    """Inputs required before Jarvis assigns paid or rate-limited SN13 work."""
+    """Inputs required before Jarvis publishes paid or rate-limited SN13 work."""
 
     model_config = {"frozen": True}
 

@@ -57,11 +57,11 @@ jarvis-miner monitor watch
 jarvis-miner deregister-check
 
 # Admin starts the workstream HTTP boundary
-JARVIS_OPERATOR_ID=operator_1 JARVIS_OPERATOR_SECRET=<shared-secret> \
+JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
   jarvis-miner workstream serve
 
 # For local-only unsigned development
-export JARVIS_OPERATOR_REQUIRE_AUTH=0
+export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
 
 # Admin publishes planned SN13 work into the durable workstream
 jarvis-miner sn13 plan publish --sample-dd --json-output \
@@ -89,6 +89,8 @@ jarvis-miner sn13 simulate cycle
 jarvis-miner sn13 simulate operator --source X --label "#bittensor" --count 5
 jarvis-miner sn13 simulate validator --query bucket --source X --label "#bittensor"
 ```
+
+Machine-readable admin commands accept both `--json-output` and the shorter `--json`.
 
 ## Documentation
 

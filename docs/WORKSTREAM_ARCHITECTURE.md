@@ -159,8 +159,7 @@ For multi-process or distributed API deployments, replace the in-memory nonce st
 Jarvis administrators can serve the workstream HTTP boundary with:
 
 ```bash
-JARVIS_OPERATOR_ID=operator_1 \
-JARVIS_OPERATOR_SECRET=<shared-secret> \
+JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
 jarvis-miner workstream serve
 ```
 
@@ -169,7 +168,7 @@ Default durable stores:
 - `JARVIS_WORKSTREAM_DB_PATH=data/workstream.sqlite3`
 - `JARVIS_SN13_DB_PATH=subnets/sn13/data/sn13.sqlite3`
 
-For multiple operators, set `JARVIS_OPERATOR_SECRETS_JSON` to a JSON object mapping operator IDs to HMAC secrets. The effective operator count is the number of entries in that map.
+`JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON` is the server-side allowlist of personal operators that may call the workstream API. The effective operator count is the number of entries in that map. This is not a scraper credential and not a Bittensor wallet.
 
 Task discovery is:
 
@@ -188,7 +187,7 @@ This keeps planning and publication separate:
 - `sn13 plan tasks` shows intended work.
 - `sn13 plan publish` writes stable task contracts into `SQLiteWorkstream`.
 
-Published tasks are open for competitive submission. The normal SN13 flow is not pinned assignment. Operators discover the same open tasks through the API, then submit results directly against the published contract. Jarvis closes the task when the accepted-cap is reached or the task expires.
+Published tasks are open for competitive submission. The normal SN13 flow is open publication, not per-operator reservation. Operators discover the same open tasks through the API, then submit results directly against the published contract. Jarvis closes the task when the accepted-cap is reached or the task expires.
 
 Jarvis administrators inspect the runtime with:
 

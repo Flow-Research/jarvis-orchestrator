@@ -5,7 +5,7 @@ This document defines the minimum configuration and resource gates for SN13.
 Jarvis has three separate readiness domains:
 
 1. Miner readiness decides whether Jarvis can serve validators.
-2. Operator-task readiness decides whether Jarvis can publish workstream tasks and intake operator uploads.
+2. Intake readiness decides whether Jarvis can accept personal-operator uploads into the quality gate.
 3. Export/archive readiness decides whether Jarvis can upload validator-facing parquet and archive a copy in Jarvis-owned S3.
 
 The machine-readable profile is `subnets/sn13/config/minimum_requirements.yaml`. The pure evaluator is `subnets/sn13/readiness.py`.
@@ -23,16 +23,7 @@ Macrocosm's miner documentation states that SN13 miners:
 - support Apify or custom scraper paths
 - support a free personal Reddit account path for Reddit scraping
 
-Jarvis does not perform the personal-operator scrape. Operators perform the scrape. Jarvis publishes requirements and enforces them during intake.
-
-The Apify documentation defines `APIFY_API_TOKEN` as the environment variable for Apify access when Jarvis or a Jarvis-approved provider uses Apify.
-
-The Reddit documentation defines the free Reddit account variables:
-
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
-- `REDDIT_USERNAME`
-- `REDDIT_PASSWORD`
+Jarvis does not perform the personal-operator scrape. Operators perform the scrape. Jarvis publishes requirements and enforces them during intake. Therefore Jarvis runtime readiness does not require source-provider API keys, Reddit OAuth variables, X credentials, or Reddit credentials. Those belong to the operator agent or provider that chooses to perform the task.
 
 The S3 validation documentation defines the miner upload path as a presigned URL flow where the miner signs an auth commitment with its hotkey, prepares parquet files, uploads under `hotkey={miner_hotkey}/job_id={job_id}/...`, and must pass filename, record-count, duplicate, scraper, and job-match validation.
 
@@ -77,26 +68,15 @@ This gate is not "Jarvis can scrape." It is "Jarvis can publish a task that an o
 
 ### X Tasks
 
-Minimum one of:
+Jarvis can publish X workstream tasks when the X task contract is supported and economics gates pass.
 
-| Path | Required config | Notes |
-| --- | --- | --- |
-| Apify | `APIFY_API_TOKEN` | Upstream-supported paid scraper path. |
-| Jarvis operator provider | `JARVIS_SN13_X_OPERATOR_ENDPOINT` | Jarvis-owned path for external personal operators/custom scraper providers. |
-
-If neither path is available, Jarvis does not publish real X workstream tasks.
+Operator-side requirements are published inside `contract.source_requirements.accepted_access_paths`. Operators decide whether they can satisfy those requirements using their own credentials or providers.
 
 ### Reddit Tasks
 
-Minimum one of:
+Jarvis can publish Reddit workstream tasks when the Reddit task contract is supported and economics gates pass.
 
-| Path | Required config | Notes |
-| --- | --- | --- |
-| Apify | `APIFY_API_TOKEN` | Upstream-supported paid scraper path. |
-| Free Reddit account | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`, `REDDIT_PASSWORD` | Upstream-supported free personal Reddit path. |
-| Jarvis operator provider | `JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT` | Jarvis-owned path for external personal operators/custom scraper providers. |
-
-If none of these paths are available, Jarvis does not publish real Reddit workstream tasks.
+Operator-side requirements are published inside `contract.source_requirements.accepted_access_paths`. Operators decide whether they can satisfy those requirements using their own credentials or providers.
 
 ## Minimum To Intake Operator Uploads
 
@@ -152,19 +132,14 @@ These are Jarvis-owned gates. They are not published upstream requirements; they
 | --- | ---: | --- |
 | Free disk blocker floor | 10 GB | validator serving, operator intake, and export staging |
 | Free disk recommended floor | 50 GB | warning only |
-| Operator quality floor | 0.80 | task publication |
-| Operator daily capacity floor | 100 items | task publication |
-| Operator/source cost budget | required | task publication |
-| Rate-limit budget | required | task publication |
-| Terms-compliant source access | required | task publication |
+| Terms-compliant source access | required from operators | published requirement and operator responsibility |
 
 The practical economic minimum is therefore:
 
 - one registered SN13 hotkey for the target network
 - one always-on CPU machine with Python `>=3.10`, stable bandwidth, SQLite storage, and at least 10 GB free disk for pilot operation
 - no GPU requirement
-- source access policy for each source Jarvis intends to publish
-- an approved source/operator budget before assigning paid or rate-limited work
+- source task contract for each source Jarvis intends to publish
 - hotkey signing plus S3 auth URL before upstream export
 - Jarvis archive bucket, region, lifecycle, and retention policy before archive export
 
@@ -179,13 +154,9 @@ Jarvis must reject or defer work in these cases:
 | Python is below `3.10` | Cannot run as supported SN13 miner. |
 | Local DB health check fails | Cannot serve validators or intake operator uploads. |
 | Free disk is below Jarvis blocker floor | Cannot intake operator uploads or stage exports. |
-| X source policy is missing | Cannot publish real X operator tasks. |
-| Reddit source policy is missing | Cannot publish real Reddit operator tasks. |
-| Operator/source budget is missing | Cannot publish source tasks. |
 | Hotkey cannot sign S3 commitment | Cannot export to upstream S3 validation path. |
 | Parquet export is unavailable | Cannot export or archive S3 data. |
 | Archive bucket is missing | Cannot archive to Jarvis-owned S3. |
-| Operator quality telemetry is missing | Publish only if the task remains inside Jarvis caps; operators still compete through intake, not assignment. |
 
 ## Implementation Mapping
 
@@ -202,9 +173,7 @@ The readiness evaluator is pure. It accepts observed facts from CLI/runtime chec
 
 - `can_serve_validators`
 - `jarvis_can_intake_operator_uploads`
-- `jarvis_can_publish_x_operator_tasks`
-- `jarvis_can_publish_reddit_operator_tasks`
 - `jarvis_can_export_upstream_s3`
 - `jarvis_can_archive_to_jarvis_s3`
 
-This keeps risky network checks out of the policy layer while still making the final accept/reject decision explicit and testable.
+Readiness does not decide whether source tasks should be published. DD, planner support, and economics refusal decide publication; intake and quality gates enforce submitted records.

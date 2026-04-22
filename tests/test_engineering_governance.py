@@ -48,6 +48,8 @@ def test_obsolete_sn13_prototypes_and_vendored_docs_are_removed():
         "subnets/sn13/listener/listener.py",
         "subnets/sn13/listener/sn13_decomposition.py",
         "subnets/sn13/listener/sn13_miner_listener.py",
+        "tests/helpers.py",
+        "tests/test_mock.py",
     ]
 
     for relative_path in obsolete_paths:

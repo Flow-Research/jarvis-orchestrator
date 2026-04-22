@@ -1826,7 +1826,7 @@ def workstream_serve(host: str | None, port: int | None, reload: bool):
 @workstream_group.command("status")
 @click.option("--workstream-db-path", type=click.Path(path_type=Path), default=None)
 @click.option("--sn13-db-path", type=click.Path(path_type=Path), default=None)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def workstream_status(
     workstream_db_path: Path | None,
     sn13_db_path: Path | None,
@@ -1916,7 +1916,7 @@ def workstream_status(
 @click.option("--subnet", type=str, default=None)
 @click.option("--source", type=str, default=None)
 @click.option("--limit", type=int, default=50, show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def workstream_tasks(
     workstream_db_path: Path | None,
     task_status: str,
@@ -2038,7 +2038,7 @@ def sn13_dd_show(dd_file: Path | None, cache_dir: Path | None, sample_dd: bool):
 @click.option("--cache-dir", type=click.Path(path_type=Path), default=None)
 @click.option("--url", type=str, default=None, help="Override Gravity aggregate URL.")
 @click.option("--timeout-seconds", type=int, default=30, show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_dd_refresh(
     cache_dir: Path | None,
     url: str | None,
@@ -2127,7 +2127,7 @@ def economics():
     show_default=True,
 )
 @click.option("--currency", type=str, default="USD", show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_economics_estimate(
     source: str,
     label: str | None,
@@ -2157,7 +2157,7 @@ def sn13_economics_estimate(
     currency: str,
     json_output: bool,
 ):
-    """Estimate whether a planned SN13 task is economically safe to assign."""
+    """Estimate whether a planned SN13 task is economically safe to publish."""
     from pydantic import ValidationError
 
     from subnets.sn13.economics import TaskEconomicsInput, evaluate_task_economics
@@ -2279,7 +2279,7 @@ def sn13_economics_estimate(
 @click.option("--lifecycle-transition-usd-per-1000", type=float, default=0.0, show_default=True)
 @click.option("--monitoring-object-count", type=int, default=0, show_default=True)
 @click.option("--monitoring-usd-per-1000-objects", type=float, default=0.0, show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_economics_s3_cost(
     storage_gb_month: float,
     storage_usd_per_gb_month: float,
@@ -2355,7 +2355,7 @@ def sn13_economics_s3_cost(
 @click.option("--target-items", type=int, default=5, show_default=True)
 @click.option("--recent-buckets", type=int, default=1, show_default=True)
 @click.option("--max-tasks", type=int, default=10, show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_plan_tasks(
     dd_file: Path | None,
     cache_dir: Path | None,
@@ -2418,7 +2418,7 @@ def sn13_plan_tasks(
     console.print(table)
     console.print(f"[cyan]Database:[/cyan] {db_path}")
     console.print(f"[cyan]DD source:[/cyan] {snapshot.source_ref or 'unknown'}")
-    console.print("[cyan]Assignment:[/cyan] open competitive intake in workstream mode")
+    console.print("[cyan]Publication:[/cyan] open competitive intake in workstream mode")
 
 
 @plan.command("publish")
@@ -2431,7 +2431,7 @@ def sn13_plan_tasks(
 @click.option("--target-items", type=int, default=5, show_default=True)
 @click.option("--recent-buckets", type=int, default=1, show_default=True)
 @click.option("--max-tasks", type=int, default=10, show_default=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_plan_publish(
     dd_file: Path | None,
     cache_dir: Path | None,
@@ -2517,7 +2517,7 @@ def sn13_plan_publish(
         "planned_tasks": len(tasks),
         "published_tasks": len(published),
         "refused_tasks": len(publication.refused_tasks),
-        "assignment_mode": "open_competitive_intake",
+        "publication_mode": "open_competitive_intake",
         "task_ids": [task.task_id for task in published],
         "refusals": [
             assessment.model_dump(mode="json") for assessment in publication.refused_tasks
@@ -2537,7 +2537,7 @@ def sn13_plan_publish(
     table.add_row("Planned tasks", str(len(tasks)))
     table.add_row("Published tasks", str(len(published)))
     table.add_row("Refused tasks", str(len(publication.refused_tasks)))
-    table.add_row("Assignment mode", "open competitive intake")
+    table.add_row("Publication mode", "open competitive intake")
     console.print(table)
     if published:
         task_table = Table(title="Published SN13 Tasks")
@@ -2578,9 +2578,7 @@ def sn13_plan_publish(
 @click.option("--export-root", type=click.Path(path_type=Path), default=None)
 @click.option("--skip-chain", is_flag=True, help="Do not query chain registration.")
 @click.option("--registered", is_flag=True, help="Assume hotkey is registered for local checks.")
-@click.option("--operator-budget/--no-operator-budget", default=False)
-@click.option("--operator-quality", type=float, default=None)
-@click.option("--operator-capacity", type=int, default=None)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 @click.pass_context
 def sn13_readiness(
     ctx,
@@ -2592,11 +2590,9 @@ def sn13_readiness(
     export_root: Path | None,
     skip_chain: bool,
     registered: bool,
-    operator_budget: bool,
-    operator_quality: float | None,
-    operator_capacity: int | None,
+    json_output: bool,
 ):
-    """Show whether Jarvis can serve SN13 and accept source/operator work."""
+    """Show whether Jarvis runtime can serve SN13, intake data, and export."""
     from subnets.sn13.readiness import (
         ReadinessStatus,
         SN13Capability,
@@ -2645,11 +2641,45 @@ def sn13_readiness(
         wallet_hotkey_can_sign=wallet_hotkey_can_sign,
         parquet_export_available=parquet_export_available,
         jarvis_archive_bucket_configured=bool(os.environ.get("JARVIS_SN13_ARCHIVE_S3_BUCKET")),
-        operator_cost_budget_available=operator_budget,
-        operator_quality_score=operator_quality,
-        operator_daily_capacity_items=operator_capacity,
     )
     report = evaluate_sn13_readiness(runtime=runtime, env=os.environ)
+
+    payload = {
+        "network": network,
+        "wallet": wallet,
+        "hotkey": hotkey,
+        "hotkey_address": hotkey_address,
+        "chain_error": chain_error,
+        "capabilities": {
+            capability.value: report.can(capability) for capability in SN13Capability
+        },
+        "runtime": {
+            "listener_running": listener_running,
+            "database": str(db_path),
+            "database_healthy": db_healthy,
+            "disk_path": str(disk_path),
+            "disk_free_gb": disk_free_gb,
+            "parquet_export_available": parquet_export_available,
+            "wallet_hotkey_can_sign": wallet_hotkey_can_sign,
+            "archive_bucket_configured": bool(
+                os.environ.get("JARVIS_SN13_ARCHIVE_S3_BUCKET")
+            ),
+        },
+        "checks": [
+            {
+                "name": check.name,
+                "status": check.status.value,
+                "message": check.message,
+                "upstream_confirmed": check.upstream_confirmed,
+            }
+            for check in report.checks
+        ],
+    }
+    if json_output:
+        click.echo(json.dumps(payload, indent=2))
+        if not report.can(SN13Capability.SERVE_VALIDATORS):
+            raise SystemExit(2)
+        return
 
     table = Table(title="SN13 Readiness")
     table.add_column("Capability", style="cyan")
@@ -2658,8 +2688,6 @@ def sn13_readiness(
     capability_labels = {
         SN13Capability.SERVE_VALIDATORS: "Serve live validator requests",
         SN13Capability.INTAKE_OPERATOR_UPLOADS: "Intake personal-operator uploads",
-        SN13Capability.PUBLISH_X_OPERATOR_TASKS: "Publish X tasks to personal operators",
-        SN13Capability.PUBLISH_REDDIT_OPERATOR_TASKS: "Publish Reddit tasks to personal operators",
         SN13Capability.EXPORT_UPSTREAM_S3: "Export to upstream presigned S3 validation path",
         SN13Capability.ARCHIVE_JARVIS_S3: "Archive exported data to Jarvis-owned S3",
     }
@@ -2726,7 +2754,7 @@ def scheduler():
 @click.option("--dd-timeout-seconds", type=int, default=30, show_default=True)
 @click.option("--sample-dd", is_flag=True, help="Use built-in sample DD records for CI/dev only.")
 @click.option("--once", is_flag=True, help="Run one scheduler cycle and exit.")
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_scheduler_run(
     cache_dir: Path | None,
     db_path: Path | None,
@@ -2922,7 +2950,7 @@ def sn13_simulate_operator(
 @click.option("--max-tasks", type=int, default=4, show_default=True)
 @click.option("--miner-hotkey", type=str, default="jarvis_simulated_hotkey", show_default=True)
 @click.option("--no-export", is_flag=True)
-@click.option("--json-output", is_flag=True)
+@click.option("--json-output", "--json", "json_output", is_flag=True)
 def sn13_simulate_cycle(
     dd_file: Path | None,
     cache_dir: Path | None,
@@ -3003,7 +3031,13 @@ def sn13_simulate_cycle(
 @click.option("--label", type=str, default="#bittensor")
 @click.option("--time-bucket", type=int, default=None)
 @click.option("--limit", type=int, default=10)
-@click.option("--json-output", is_flag=True, help="Print JSON-compatible simulation output.")
+@click.option(
+    "--json-output",
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Print JSON-compatible simulation output.",
+)
 def sn13_simulate_validator(
     db_path: Path | None,
     query: str,

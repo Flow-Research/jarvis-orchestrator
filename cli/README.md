@@ -71,15 +71,14 @@ The preferred modern form is `jarvis-miner monitor ...`, but the aliases are kep
 Personal operators do not run these commands. Jarvis administrators run them to expose and inspect the workstream HTTP boundary that operators call.
 
 ```bash
-JARVIS_OPERATOR_ID=operator_1 \
-JARVIS_OPERATOR_SECRET=<shared-secret> \
+JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
 jarvis-miner workstream serve
 ```
 
 Auth is required by default. For local-only unsigned development, set:
 
 ```bash
-export JARVIS_OPERATOR_REQUIRE_AUTH=0
+export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
 ```
 
 Default stores:
@@ -89,14 +88,14 @@ JARVIS_WORKSTREAM_DB_PATH=data/workstream.sqlite3
 JARVIS_SN13_DB_PATH=subnets/sn13/data/sn13.sqlite3
 ```
 
-For multiple operators, set `JARVIS_OPERATOR_SECRETS_JSON` to a JSON object mapping operator IDs to HMAC secrets.
+`JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON` is the server-side allowlist of personal operators that may call the workstream API. This is not a scraper credential and not a Bittensor wallet.
 
 Runtime network/auth controls:
 
 ```text
 JARVIS_WORKSTREAM_HOST=127.0.0.1
 JARVIS_WORKSTREAM_PORT=8787
-JARVIS_OPERATOR_MAX_CLOCK_SKEW_SECONDS=300
+JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS=300
 ```
 
 Admin inspection commands:
@@ -111,6 +110,8 @@ jarvis-miner workstream tasks --status completed
 `workstream status` shows runtime config, auth state, durable workstream counts, and SN13 canonical/audit counts.
 
 `workstream tasks` lists tasks from the durable workstream store with status, target, accepted progress, and quantity.
+
+Machine-readable admin commands accept both `--json-output` and the shorter `--json`.
 
 In the default SN13 runtime, operator stats are also durable. `GET /v1/operators/{operator_id}/stats` is backed by canonical SN13 SQLite quality facts, not by the in-memory test helper in `workstream/stats.py`.
 
@@ -317,7 +318,7 @@ Important options:
 | `--target-items N` | Desired items per bucket before planner stops filling it. |
 | `--recent-buckets N` | Number of recent hourly buckets to plan for default jobs. |
 | `--max-tasks N` | Maximum tasks emitted in one planning call. |
-| `--json-output` | Print machine-readable task contracts. |
+| `--json-output`, `--json` | Print machine-readable task contracts. |
 
 `--json-output` emits `OperatorTaskContract` payloads. `sn13 plan publish` writes these contracts into the durable workstream for personal operators.
 
@@ -342,11 +343,11 @@ Each task contract includes:
 - accepted source access/provider paths
 - duplicate and quality gate requirements
 
-Jarvis may show Gravity jobs for sources it does not yet assign. The planner currently assigns only X and Reddit because those are the confirmed validation/export paths.
+Jarvis may show Gravity jobs for sources it does not yet support. The planner currently publishes X and Reddit because those are the confirmed validation/export paths.
 
 ## SN13 Economics
 
-Run economics before assigning paid or rate-limited operator work:
+Run economics before publishing paid or rate-limited operator work:
 
 ```bash
 jarvis-miner sn13 economics estimate \
@@ -385,7 +386,7 @@ Use `--s3-mode upstream_presigned` for the upstream Data Universe presigned uplo
 
 ## SN13 Readiness
 
-Run readiness before serving validators or assigning real operator work:
+Run readiness before serving validators or publishing real operator work:
 
 ```bash
 jarvis-miner sn13 readiness --network testnet
@@ -395,18 +396,6 @@ Fast local check without chain query:
 
 ```bash
 jarvis-miner sn13 readiness --network testnet --skip-chain --registered
-```
-
-Include operator/economic gates:
-
-```bash
-jarvis-miner sn13 readiness \
-  --network testnet \
-  --skip-chain \
-  --registered \
-  --operator-budget \
-  --operator-quality 0.95 \
-  --operator-capacity 500
 ```
 
 Important options:
@@ -421,11 +410,10 @@ Important options:
 | `--export-root PATH` | Export root checked for parquet artifacts. |
 | `--skip-chain` | Do not query chain registration. |
 | `--registered` | Assume hotkey is registered for local checks. |
-| `--operator-budget` | Assert operator/source budget is available. |
-| `--operator-quality FLOAT` | Current operator quality score. |
-| `--operator-capacity INTEGER` | Daily operator capacity estimate. |
 
 Exit code `2` means Jarvis is not ready to serve validators.
+
+Readiness does not decide whether X, Reddit, or future source tasks should be published. DD, planner support, and economics refusal decide publication; intake and quality gates enforce submitted records.
 
 ## SN13 Simulation
 
@@ -746,7 +734,7 @@ Jarvis is not ready to serve validators. Read the failed checks table. Common ca
 - hotkey not registered
 - production listener runtime not implemented or not running
 - disk below minimum
-- source/operator budget missing
+- economics inputs missing
 - export artifacts missing for S3 readiness
 
 ### `plan tasks` emits no tasks

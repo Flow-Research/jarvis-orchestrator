@@ -19,7 +19,6 @@ from subnets.sn13.listener.protocol_adapter import (
 from subnets.sn13.models import DataSource
 from subnets.sn13.storage import SQLiteStorage
 
-
 SOURCE_TIME = datetime(1970, 3, 18, 21, 0, tzinfo=timezone.utc)
 SCRAPED_AT = datetime(2026, 4, 21, 12, 0, tzinfo=timezone.utc)
 
@@ -119,7 +118,10 @@ def test_bind_get_data_entity_bucket_sets_upstream_data_entities(tmp_path):
     assert data_entities[0]["uri"] == "https://x.com/example/status/123456789"
     assert data_entities[0]["source"] == 2
     assert data_entities[0]["label"] == {"value": "$btc"}
-    assert data_entities[0]["content"] == storage.query_bucket(DataSource.X, "$BTC", 1845).entities[0].content
+    assert (
+        data_entities[0]["content"]
+        == storage.query_bucket(DataSource.X, "$BTC", 1845).entities[0].content
+    )
 
 
 def test_bind_get_contents_by_buckets_sets_flattened_bucket_content_pairs(tmp_path):

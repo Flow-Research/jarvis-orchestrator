@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -42,9 +41,9 @@ class QualityResult(BaseModel):
     operator_id: str
     status: SubmissionStatus
     reasons: list[str] = Field(default_factory=list)
-    entity: Optional[DataEntity] = None
-    desirability_match: Optional[DesirabilityMatch] = None
-    scorable_decision: Optional[ScorableDecision] = None
+    entity: DataEntity | None = None
+    desirability_match: DesirabilityMatch | None = None
+    scorable_decision: ScorableDecision | None = None
 
     @property
     def accepted(self) -> bool:
@@ -60,8 +59,8 @@ class SubmissionQualityChecker:
     def __init__(
         self,
         *,
-        policy: Optional[SN13Policy] = None,
-        desirability_snapshot: Optional[DesirabilitySnapshot] = None,
+        policy: SN13Policy | None = None,
+        desirability_snapshot: DesirabilitySnapshot | None = None,
     ):
         self.policy = policy or SN13Policy()
         self.desirability_snapshot = desirability_snapshot
@@ -71,7 +70,7 @@ class SubmissionQualityChecker:
         submission: OperatorSubmission,
         *,
         duplicate: bool = False,
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ) -> QualityResult:
         reasons = self._validate_source_payload(submission)
 

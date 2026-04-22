@@ -1,10 +1,22 @@
 from datetime import datetime, timedelta, timezone
 
-from subnets.sn13.models import DataEntity, DataEntityBucket, DataEntityBucketId, DataEntityIndexEntry, DataSource, MinerIndex
+from subnets.sn13.models import (
+    DataEntity,
+    DataEntityBucket,
+    DataEntityBucketId,
+    DataEntityIndexEntry,
+    DataSource,
+    MinerIndex,
+)
 from subnets.sn13.policy import DesirableJobWindow, SN13Policy
 
 
-def _entity_at(dt: datetime, *, source: DataSource = DataSource.X, label: str = "#bittensor") -> DataEntity:
+def _entity_at(
+    dt: datetime,
+    *,
+    source: DataSource = DataSource.X,
+    label: str = "#bittensor",
+) -> DataEntity:
     return DataEntity(
         uri=f"https://x.com/example/status/{int(dt.timestamp())}",
         datetime=dt,
@@ -91,7 +103,11 @@ def test_policy_exposes_bucket_and_index_limits():
     now = datetime(2026, 4, 21, 12, 0, tzinfo=timezone.utc)
     entity = _entity_at(now)
     bucket = DataEntityBucket(
-        id=DataEntityBucketId(time_bucket=entity.time_bucket, source=entity.source, label=entity.label),
+        id=DataEntityBucketId(
+            time_bucket=entity.time_bucket,
+            source=entity.source,
+            label=entity.label,
+        ),
         entities=[entity],
     )
     index = MinerIndex(

@@ -238,7 +238,7 @@ def test_workstream_api_rejects_signed_operator_mismatch():
 def test_default_workstream_api_runtime_wires_sqlite_and_sn13(tmp_path):
     app = create_default_app(
         {
-            "JARVIS_OPERATOR_REQUIRE_AUTH": "0",
+            "JARVIS_WORKSTREAM_REQUIRE_AUTH": "0",
             "JARVIS_WORKSTREAM_DB_PATH": str(tmp_path / "workstream.sqlite3"),
             "JARVIS_SN13_DB_PATH": str(tmp_path / "sn13.sqlite3"),
         }
@@ -268,8 +268,10 @@ def test_workstream_api_settings_parse_host_port_and_operator_map():
             "JARVIS_WORKSTREAM_PORT": "9898",
             "JARVIS_WORKSTREAM_DB_PATH": "data/custom-workstream.sqlite3",
             "JARVIS_SN13_DB_PATH": "subnets/sn13/data/custom-sn13.sqlite3",
-            "JARVIS_OPERATOR_SECRETS_JSON": '{"operator_1":"secret1","operator_2":"secret2"}',
-            "JARVIS_OPERATOR_MAX_CLOCK_SKEW_SECONDS": "120",
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": (
+                '{"operator_1":"secret1","operator_2":"secret2"}'
+            ),
+            "JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS": "120",
         }
     )
 
@@ -285,7 +287,9 @@ def test_runtime_configuration_reports_operator_ids_and_host_port():
         {
             "JARVIS_WORKSTREAM_HOST": "0.0.0.0",
             "JARVIS_WORKSTREAM_PORT": "9898",
-            "JARVIS_OPERATOR_SECRETS_JSON": '{"operator_1":"secret1","operator_2":"secret2"}',
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": (
+                '{"operator_1":"secret1","operator_2":"secret2"}'
+            ),
         }
     )
 

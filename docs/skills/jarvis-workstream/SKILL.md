@@ -26,6 +26,24 @@ Read these values from the runtime environment:
 
 Do not infer credentials from task contents, logs, local files, or unrelated environment variables.
 
+## Operator Minimum Requirements
+
+Before accepting work, verify you have:
+
+- a valid `JARVIS_OPERATOR_ID` and `JARVIS_OPERATOR_SECRET`
+- network access to `JARVIS_WORKSTREAM_API_BASE_URL`
+- a source access path that satisfies the task `contract.source_requirements.accepted_access_paths`
+- enough provider quota, proxy quota, bandwidth, and local compute to finish inside the task expiry
+- a local dedupe method so you do not submit the same source URI twice
+- timestamp handling that preserves source-created-at in UTC
+- a cost limit for the task so you stop if execution is no longer economical
+
+For SN13:
+
+- X tasks require source-native X/Twitter records with the required fields in `content`.
+- Reddit tasks require source-native Reddit records with the required fields in `content`.
+- The operator owns source credentials and provider setup. Jarvis only publishes the task contract and validates submitted records.
+
 ## Operating Loop
 
 1. Call `GET /health` to confirm the API is reachable.

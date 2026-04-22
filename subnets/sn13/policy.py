@@ -10,7 +10,6 @@ windows can override the default freshness logic.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -52,8 +51,8 @@ class DesirableJobWindow(BaseModel):
     source: DataSource
     label: str = Field(..., min_length=1, max_length=140)
     scale_factor: float = Field(default=1.0, gt=0.0)
-    start_time_bucket: Optional[int] = Field(default=None, ge=0)
-    end_time_bucket: Optional[int] = Field(default=None, ge=0)
+    start_time_bucket: int | None = Field(default=None, ge=0)
+    end_time_bucket: int | None = Field(default=None, ge=0)
 
     @field_validator("label")
     @classmethod
@@ -82,7 +81,7 @@ class ScorableDecision(BaseModel):
     source_weight: float
     hours_old: int = Field(..., ge=0)
     time_bucket: int = Field(..., ge=0)
-    desirable_scale_factor: Optional[float] = Field(default=None, gt=0.0)
+    desirable_scale_factor: float | None = Field(default=None, gt=0.0)
     desirable_window_applied: bool = False
 
 
@@ -103,7 +102,7 @@ class SN13Policy(BaseModel):
     )
     credibility: CredibilityPolicy = Field(default_factory=CredibilityPolicy)
 
-    def current_time_bucket(self, now: Optional[datetime] = None) -> int:
+    def current_time_bucket(self, now: datetime | None = None) -> int:
         return time_bucket_from_datetime(ensure_utc(now or datetime.now(timezone.utc)))
 
     def max_freshness_hours(self) -> int:
@@ -122,8 +121,8 @@ class SN13Policy(BaseModel):
         self,
         entity: DataEntity,
         *,
-        now: Optional[datetime] = None,
-        desirable_job: Optional[DesirableJobWindow] = None,
+        now: datetime | None = None,
+        desirable_job: DesirableJobWindow | None = None,
     ) -> ScorableDecision:
         current_bucket = self.current_time_bucket(now)
         entity_bucket = entity.time_bucket
@@ -192,11 +191,11 @@ class SN13Policy(BaseModel):
     def classify_time_bucket(
         self,
         source: DataSource,
-        label: Optional[str],
+        label: str | None,
         time_bucket: TimeBucket,
         *,
-        now: Optional[datetime] = None,
-        desirable_job: Optional[DesirableJobWindow] = None,
+        now: datetime | None = None,
+        desirable_job: DesirableJobWindow | None = None,
     ) -> ScorableDecision:
         entity = DataEntity(
             uri=f"policy://{source.value.casefold()}/{time_bucket}/{label or 'unlabeled'}",

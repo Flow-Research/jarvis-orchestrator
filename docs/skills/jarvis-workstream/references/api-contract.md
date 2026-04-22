@@ -8,6 +8,8 @@ Base URL comes from `JARVIS_WORKSTREAM_API_BASE_URL`.
 
 When auth is enabled, `GET /v1/tasks` does not require an `operator_id` query parameter. Identity comes from the signed headers.
 
+Jarvis does not provide source scraper credentials through this API. Source credentials, provider access, quota, and execution cost belong to the operator.
+
 ## Endpoints
 
 | Method | Path | Purpose |

@@ -228,7 +228,7 @@ class TestHelp:
 
         assert result.exit_code == 1
         assert "workstream api auth is required" in result.output.lower()
-        assert "jarvis_operator_secrets_json" in result.output.lower()
+        assert "jarvis_workstream_operator_secrets_json" in result.output.lower()
 
 
 # ── Validate command ─────────────────────────────────────────────────────
@@ -727,7 +727,7 @@ class TestSN13Commands:
         payload = json.loads(result.output)
         assert payload["published_tasks"] == 2
         assert payload["refused_tasks"] == 0
-        assert payload["assignment_mode"] == "open_competitive_intake"
+        assert payload["publication_mode"] == "open_competitive_intake"
 
         second = runner.invoke(
             cli,
@@ -1011,19 +1011,29 @@ class TestSN13Commands:
                 "readiness",
                 "--skip-chain",
                 "--registered",
-                "--operator-budget",
-                "--operator-quality",
-                "0.95",
-                "--operator-capacity",
-                "500",
             ],
-            env={"APIFY_API_TOKEN": "token"},
         )
 
         assert result.exit_code == 0
         assert "SN13 Readiness" in result.output
         assert "can_serve_validators" in result.output
-        assert "jarvis_can_publish_x_operator_t" in result.output
+        assert "Intake personal-operator uploads" in result.output
+
+        json_result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "readiness",
+                "--skip-chain",
+                "--registered",
+                "--json",
+            ],
+        )
+
+        assert json_result.exit_code == 0
+        payload = json.loads(json_result.output)
+        assert payload["capabilities"]["can_serve_validators"] is True
+        assert payload["capabilities"]["jarvis_can_intake_operator_uploads"] is True
 
     def test_sn13_operator_and_validator_simulation_share_storage(
         self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1140,8 +1150,7 @@ class TestSN13Commands:
                 "--json-output",
             ],
             env={
-                "JARVIS_OPERATOR_ID": "operator_1",
-                "JARVIS_OPERATOR_SECRET": "secret",
+                "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": '{"operator_1":"secret"}',
             },
         )
 
@@ -1154,6 +1163,25 @@ class TestSN13Commands:
         assert payload["completed_tasks"] == 1
         assert payload["canonical_entities"] == 1
         assert payload["accepted_submissions"] == 1
+
+        alias_result = runner.invoke(
+            cli,
+            [
+                "workstream",
+                "status",
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--sn13-db-path",
+                str(db_path),
+                "--json",
+            ],
+            env={
+                "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": '{"operator_1":"secret"}',
+            },
+        )
+
+        assert alias_result.exit_code == 0
+        assert json.loads(alias_result.output)["total_tasks"] == 2
 
     def test_workstream_tasks_lists_filtered_durable_tasks(
         self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

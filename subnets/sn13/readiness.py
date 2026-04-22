@@ -18,16 +18,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from .models import DataSource
-
 DEFAULT_MINIMUM_REQUIREMENTS_PATH = Path(__file__).with_name("config") / "minimum_requirements.yaml"
 DEFAULT_S3_AUTH_URL = "https://data-universe-api.api.macrocosmos.ai"
-REDDIT_OAUTH_ENV_VARS = (
-    "REDDIT_CLIENT_ID",
-    "REDDIT_CLIENT_SECRET",
-    "REDDIT_USERNAME",
-    "REDDIT_PASSWORD",
-)
 
 
 class ReadinessStatus(str, Enum):
@@ -43,21 +35,8 @@ class SN13Capability(str, Enum):
 
     SERVE_VALIDATORS = "can_serve_validators"
     INTAKE_OPERATOR_UPLOADS = "jarvis_can_intake_operator_uploads"
-    PUBLISH_X_OPERATOR_TASKS = "jarvis_can_publish_x_operator_tasks"
-    PUBLISH_REDDIT_OPERATOR_TASKS = "jarvis_can_publish_reddit_operator_tasks"
     EXPORT_UPSTREAM_S3 = "jarvis_can_export_upstream_s3"
     ARCHIVE_JARVIS_S3 = "jarvis_can_archive_to_jarvis_s3"
-
-
-class SourceAccess(BaseModel):
-    """Credential/provider state for a single SN13 data source."""
-
-    model_config = {"frozen": True}
-
-    source: DataSource
-    configured: bool
-    path: str | None = None
-    missing: tuple[str, ...] = Field(default_factory=tuple)
 
 
 class ReadinessCheck(BaseModel):
@@ -79,8 +58,6 @@ class SN13MinimumRequirements(BaseModel):
     python_min_version: str = "3.10"
     disk_free_gb_blocker: float = Field(default=10.0, ge=0)
     disk_free_gb_recommended: float = Field(default=50.0, ge=0)
-    min_operator_quality_score: float = Field(default=0.8, ge=0.0, le=1.0)
-    min_operator_daily_capacity_items: int = Field(default=100, ge=1)
     s3_auth_url_default: str = DEFAULT_S3_AUTH_URL
 
     @field_validator("python_min_version")
@@ -109,9 +86,6 @@ class SN13RuntimeState(BaseModel):
     wallet_hotkey_can_sign: bool = False
     parquet_export_available: bool = False
     jarvis_archive_bucket_configured: bool = False
-    operator_cost_budget_available: bool = False
-    operator_quality_score: float | None = Field(default=None, ge=0.0, le=1.0)
-    operator_daily_capacity_items: int | None = Field(default=None, ge=0)
 
 
 class SN13ReadinessReport(BaseModel):
@@ -121,7 +95,6 @@ class SN13ReadinessReport(BaseModel):
 
     requirements: SN13MinimumRequirements
     checks: tuple[ReadinessCheck, ...]
-    source_access: tuple[SourceAccess, ...]
     capabilities: dict[SN13Capability, bool]
 
     @property
@@ -147,10 +120,6 @@ def load_minimum_requirements(
         python_min_version=str(upstream.get("python_min_version", "3.10")),
         disk_free_gb_blocker=float(economic.get("disk_free_gb_blocker", 10)),
         disk_free_gb_recommended=float(economic.get("disk_free_gb_recommended", 50)),
-        min_operator_quality_score=float(economic.get("min_operator_quality_score", 0.8)),
-        min_operator_daily_capacity_items=int(
-            economic.get("min_operator_daily_capacity_items", 100)
-        ),
         s3_auth_url_default=str(upstream.get("s3_auth_url_default", DEFAULT_S3_AUTH_URL)),
     )
 
@@ -165,9 +134,6 @@ def evaluate_sn13_readiness(
     env_values = env or os.environ
     req = requirements or load_minimum_requirements()
     checks: list[ReadinessCheck] = []
-
-    x_access = _x_source_access(env_values)
-    reddit_access = _reddit_source_access(env_values)
 
     python_ok = _version_tuple(runtime.python_version) >= _version_tuple(req.python_min_version)
     checks.append(
@@ -343,8 +309,6 @@ def evaluate_sn13_readiness(
         )
     )
 
-    checks.extend(_operator_checks(runtime, req))
-
     can_serve_validators = all(
         _check_passed(checks, name)
         for name in (
@@ -361,26 +325,11 @@ def evaluate_sn13_readiness(
         for name in (
             "local_db_healthy",
             "disk_above_blocker_floor",
-            "operator_cost_budget_available",
-            "operator_quality_floor",
-            "operator_daily_capacity_floor",
         )
-    )
-    operator_budget_ok = _check_passed(checks, "operator_cost_budget_available")
-    operator_ready = (
-        operator_budget_ok
-        and _check_passed(checks, "operator_quality_floor")
-        and _check_passed(checks, "operator_daily_capacity_floor")
     )
     capabilities = {
         SN13Capability.SERVE_VALIDATORS: can_serve_validators,
         SN13Capability.INTAKE_OPERATOR_UPLOADS: can_intake_operator_uploads,
-        SN13Capability.PUBLISH_X_OPERATOR_TASKS: can_serve_validators
-        and x_access.configured
-        and operator_ready,
-        SN13Capability.PUBLISH_REDDIT_OPERATOR_TASKS: can_serve_validators
-        and reddit_access.configured
-        and operator_ready,
         SN13Capability.EXPORT_UPSTREAM_S3: can_serve_validators
         and s3_auth_url_configured
         and runtime.wallet_hotkey_can_sign
@@ -389,142 +338,10 @@ def evaluate_sn13_readiness(
         and runtime.parquet_export_available,
     }
 
-    checks.extend(_source_checks(x_access, reddit_access))
-
     return SN13ReadinessReport(
         requirements=req,
         checks=tuple(checks),
-        source_access=(x_access, reddit_access),
         capabilities=capabilities,
-    )
-
-
-def _operator_checks(
-    runtime: SN13RuntimeState,
-    req: SN13MinimumRequirements,
-) -> list[ReadinessCheck]:
-    quality_ok = (
-        runtime.operator_quality_score is not None
-        and runtime.operator_quality_score >= req.min_operator_quality_score
-    )
-    capacity_ok = (
-        runtime.operator_daily_capacity_items is not None
-        and runtime.operator_daily_capacity_items >= req.min_operator_daily_capacity_items
-    )
-    return [
-        ReadinessCheck(
-            name="operator_cost_budget_available",
-            status=(
-                ReadinessStatus.PASS
-                if runtime.operator_cost_budget_available
-                else ReadinessStatus.BLOCKED
-            ),
-            message=(
-                "Operator/source cost budget is available."
-                if runtime.operator_cost_budget_available
-                else (
-                    "Jarvis must not assign paid or rate-limited work without "
-                    "an approved cost/rate-limit budget."
-                )
-            ),
-            upstream_confirmed=False,
-        ),
-        ReadinessCheck(
-            name="operator_quality_floor",
-            status=ReadinessStatus.PASS if quality_ok else ReadinessStatus.BLOCKED,
-            message=(
-                f"Operator quality score {runtime.operator_quality_score:.2f} meets Jarvis floor."
-                if quality_ok
-                else (
-                    "Operator quality is unknown or below Jarvis floor of "
-                    f"{req.min_operator_quality_score:.2f}."
-                )
-            ),
-            upstream_confirmed=False,
-        ),
-        ReadinessCheck(
-            name="operator_daily_capacity_floor",
-            status=ReadinessStatus.PASS if capacity_ok else ReadinessStatus.BLOCKED,
-            message=(
-                (
-                    f"Operator daily capacity {runtime.operator_daily_capacity_items} "
-                    "meets Jarvis floor."
-                )
-                if capacity_ok
-                else (
-                    "Operator daily capacity is unknown or below Jarvis floor of "
-                    f"{req.min_operator_daily_capacity_items} items."
-                )
-            ),
-            upstream_confirmed=False,
-        ),
-    ]
-
-
-def _source_checks(x_access: SourceAccess, reddit_access: SourceAccess) -> list[ReadinessCheck]:
-    return [
-        ReadinessCheck(
-            name="x_source_access_configured",
-            status=ReadinessStatus.PASS if x_access.configured else ReadinessStatus.BLOCKED,
-            message=(
-                f"X source access configured via {x_access.path}."
-                if x_access.configured
-                else "X tasks require APIFY_API_TOKEN or JARVIS_SN13_X_OPERATOR_ENDPOINT."
-            ),
-            upstream_confirmed=True,
-        ),
-        ReadinessCheck(
-            name="reddit_source_access_configured",
-            status=ReadinessStatus.PASS if reddit_access.configured else ReadinessStatus.BLOCKED,
-            message=(
-                f"Reddit source access configured via {reddit_access.path}."
-                if reddit_access.configured
-                else (
-                    "Reddit tasks require APIFY_API_TOKEN, Reddit OAuth env vars, "
-                    "or JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT."
-                )
-            ),
-            upstream_confirmed=True,
-        ),
-    ]
-
-
-def _x_source_access(env: Mapping[str, str]) -> SourceAccess:
-    if _present(env, "APIFY_API_TOKEN"):
-        return SourceAccess(source=DataSource.X, configured=True, path="APIFY_API_TOKEN")
-    if _present(env, "JARVIS_SN13_X_OPERATOR_ENDPOINT"):
-        return SourceAccess(
-            source=DataSource.X,
-            configured=True,
-            path="JARVIS_SN13_X_OPERATOR_ENDPOINT",
-        )
-    return SourceAccess(
-        source=DataSource.X,
-        configured=False,
-        missing=("APIFY_API_TOKEN", "JARVIS_SN13_X_OPERATOR_ENDPOINT"),
-    )
-
-
-def _reddit_source_access(env: Mapping[str, str]) -> SourceAccess:
-    if _present(env, "APIFY_API_TOKEN"):
-        return SourceAccess(source=DataSource.REDDIT, configured=True, path="APIFY_API_TOKEN")
-    if all(_present(env, name) for name in REDDIT_OAUTH_ENV_VARS):
-        return SourceAccess(
-            source=DataSource.REDDIT,
-            configured=True,
-            path="reddit_oauth_env_group",
-        )
-    if _present(env, "JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT"):
-        return SourceAccess(
-            source=DataSource.REDDIT,
-            configured=True,
-            path="JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT",
-        )
-    missing = tuple(name for name in REDDIT_OAUTH_ENV_VARS if not _present(env, name))
-    return SourceAccess(
-        source=DataSource.REDDIT,
-        configured=False,
-        missing=("APIFY_API_TOKEN", "JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT", *missing),
     )
 
 

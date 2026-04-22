@@ -18,8 +18,6 @@ class WorkstreamAPISettings(BaseModel):
     sn13_db_path: Path = Path("subnets/sn13/data/sn13.sqlite3")
     require_auth: bool = True
     operator_secrets_json: str | None = None
-    operator_id: str | None = None
-    operator_secret: str | None = None
     max_clock_skew_seconds: int = Field(default=300, ge=30, le=3600)
 
     @classmethod
@@ -34,12 +32,10 @@ class WorkstreamAPISettings(BaseModel):
             sn13_db_path=Path(
                 values.get("JARVIS_SN13_DB_PATH", "subnets/sn13/data/sn13.sqlite3")
             ),
-            require_auth=values.get("JARVIS_OPERATOR_REQUIRE_AUTH", "1") != "0",
-            operator_secrets_json=values.get("JARVIS_OPERATOR_SECRETS_JSON"),
-            operator_id=values.get("JARVIS_OPERATOR_ID"),
-            operator_secret=values.get("JARVIS_OPERATOR_SECRET"),
+            require_auth=(values.get("JARVIS_WORKSTREAM_REQUIRE_AUTH", "1") != "0"),
+            operator_secrets_json=values.get("JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON"),
             max_clock_skew_seconds=int(
-                values.get("JARVIS_OPERATOR_MAX_CLOCK_SKEW_SECONDS", "300")
+                values.get("JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS", "300")
             ),
         )
 
@@ -48,17 +44,14 @@ class WorkstreamAPISettings(BaseModel):
         if self.operator_secrets_json:
             parsed = self.operator_secrets
             if not parsed:
-                raise ValueError("JARVIS_OPERATOR_SECRETS_JSON must include at least one operator")
-        elif self.operator_id or self.operator_secret:
-            if not (self.operator_id and self.operator_secret):
                 raise ValueError(
-                    "JARVIS_OPERATOR_ID and JARVIS_OPERATOR_SECRET must be set together"
+                    "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON must include at least one operator"
                 )
         elif self.require_auth:
             raise ValueError(
-                "Workstream API auth is required. Set JARVIS_OPERATOR_SECRETS_JSON or "
-                "JARVIS_OPERATOR_ID/JARVIS_OPERATOR_SECRET. For local-only unsigned "
-                "development, set JARVIS_OPERATOR_REQUIRE_AUTH=0."
+                "Workstream API auth is required. Set "
+                "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON. For local-only unsigned "
+                "development, set JARVIS_WORKSTREAM_REQUIRE_AUTH=0."
             )
         return self
 
@@ -69,23 +62,21 @@ class WorkstreamAPISettings(BaseModel):
                 parsed = json.loads(self.operator_secrets_json)
             except json.JSONDecodeError as exc:
                 raise ValueError(
-                    f"invalid JARVIS_OPERATOR_SECRETS_JSON: {exc.msg}"
+                    f"invalid JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON: {exc.msg}"
                 ) from exc
             if not isinstance(parsed, dict):
-                raise ValueError("JARVIS_OPERATOR_SECRETS_JSON must be a JSON object")
+                raise ValueError("JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON must be a JSON object")
             secrets: dict[str, str] = {}
             for operator_id, secret in parsed.items():
                 operator_id_text = str(operator_id).strip()
                 secret_text = str(secret).strip()
                 if not operator_id_text or not secret_text:
                     raise ValueError(
-                        "JARVIS_OPERATOR_SECRETS_JSON must map non-empty operator IDs to "
-                        "non-empty secrets"
+                        "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON must map non-empty "
+                        "operator IDs to non-empty secrets"
                     )
                 secrets[operator_id_text] = secret_text
             return secrets
-        if self.operator_id and self.operator_secret:
-            return {self.operator_id: self.operator_secret}
         return {}
 
     @property

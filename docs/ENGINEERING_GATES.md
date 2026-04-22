@@ -97,10 +97,10 @@ Feature work is paused until these foundations exist:
 | cost model module and deterministic tests | done |
 | CLI command to print economics/readiness | done |
 | operator task contract includes expected unit economics | done |
-| readiness separates Jarvis, operator, upstream S3, and archive ownership | done |
+| readiness is limited to Jarvis runtime, intake, export, and archive capability | done |
 | planner refuses real work when economics is missing | done |
 | runtime metrics capture actual economics and archive deletion | pending |
-| CI runs the focused SN13/CLI suite and Testcontainers suite | done |
+| CI runs lint, external skill validation, non-integration tests with coverage, and Testcontainers | done |
 
 The freeze remains active while any pending foundation exists.
 

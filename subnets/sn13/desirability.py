@@ -11,13 +11,12 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .models import DataEntity, DataSource, ensure_utc, normalize_label, time_bucket_from_datetime
 from .policy import DesirableJobWindow, ScorableDecision, SN13Policy
-
 
 PLATFORM_TO_SOURCE = {
     "x": DataSource.X,
@@ -34,10 +33,10 @@ class DesirabilityJob(BaseModel):
     job_id: str = Field(..., min_length=1, max_length=80)
     source: DataSource
     weight: float = Field(..., gt=0.0)
-    label: Optional[str] = Field(default=None, max_length=140)
-    keyword: Optional[str] = Field(default=None, max_length=140)
-    start_datetime: Optional[datetime] = None
-    end_datetime: Optional[datetime] = None
+    label: str | None = Field(default=None, max_length=140)
+    keyword: str | None = Field(default=None, max_length=140)
+    start_datetime: datetime | None = None
+    end_datetime: datetime | None = None
 
     @field_validator("label")
     @classmethod
@@ -57,7 +56,7 @@ class DesirabilityJob(BaseModel):
         return ensure_utc(value)
 
     @model_validator(mode="after")
-    def validate_job(self) -> "DesirabilityJob":
+    def validate_job(self) -> DesirabilityJob:
         if self.label is None and self.keyword is None:
             raise ValueError("desirability job requires at least one of label or keyword")
         if self.start_datetime and self.end_datetime and self.start_datetime >= self.end_datetime:
@@ -65,7 +64,7 @@ class DesirabilityJob(BaseModel):
         return self
 
     @classmethod
-    def from_upstream_record(cls, record: dict[str, Any]) -> "DesirabilityJob":
+    def from_upstream_record(cls, record: dict[str, Any]) -> DesirabilityJob:
         params = record.get("params") or {}
         platform = str(params.get("platform", "")).casefold()
         if platform not in PLATFORM_TO_SOURCE:
@@ -97,9 +96,9 @@ class DesirabilityJob(BaseModel):
         self,
         *,
         source: DataSource,
-        label: Optional[str],
+        label: str | None,
         time_bucket: int,
-        keyword: Optional[str] = None,
+        keyword: str | None = None,
     ) -> bool:
         if self.source != source:
             return False
@@ -141,9 +140,9 @@ class DesirabilityMatch(BaseModel):
 
     matched: bool
     source: DataSource
-    label: Optional[str]
+    label: str | None
     time_bucket: int
-    job: Optional[DesirabilityJob] = None
+    job: DesirabilityJob | None = None
     reason: str
 
     @property
@@ -158,7 +157,7 @@ class DesirabilitySnapshot(BaseModel):
 
     jobs: list[DesirabilityJob] = Field(default_factory=list)
     retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    source_ref: Optional[str] = None
+    source_ref: str | None = None
 
     @field_validator("retrieved_at")
     @classmethod
@@ -170,9 +169,9 @@ class DesirabilitySnapshot(BaseModel):
         cls,
         records: list[dict[str, Any]],
         *,
-        source_ref: Optional[str] = None,
-        retrieved_at: Optional[datetime] = None,
-    ) -> "DesirabilitySnapshot":
+        source_ref: str | None = None,
+        retrieved_at: datetime | None = None,
+    ) -> DesirabilitySnapshot:
         return cls(
             jobs=[DesirabilityJob.from_upstream_record(record) for record in records],
             source_ref=source_ref,
@@ -180,7 +179,7 @@ class DesirabilitySnapshot(BaseModel):
         )
 
     @classmethod
-    def from_json_file(cls, path: Path) -> "DesirabilitySnapshot":
+    def from_json_file(cls, path: Path) -> DesirabilitySnapshot:
         return cls.from_upstream_records(
             json.loads(path.read_text()),
             source_ref=str(path),
@@ -190,9 +189,9 @@ class DesirabilitySnapshot(BaseModel):
         self,
         *,
         source: DataSource,
-        label: Optional[str],
+        label: str | None,
         time_bucket: int,
-        keyword: Optional[str] = None,
+        keyword: str | None = None,
     ) -> DesirabilityMatch:
         candidates = [
             job
@@ -223,7 +222,12 @@ class DesirabilitySnapshot(BaseModel):
             reason="matched_desirability_job",
         )
 
-    def find_for_entity(self, entity: DataEntity, *, keyword: Optional[str] = None) -> DesirabilityMatch:
+    def find_for_entity(
+        self,
+        entity: DataEntity,
+        *,
+        keyword: str | None = None,
+    ) -> DesirabilityMatch:
         return self.find_best_match(
             source=entity.source,
             label=entity.label,
@@ -235,9 +239,9 @@ class DesirabilitySnapshot(BaseModel):
         self,
         entity: DataEntity,
         *,
-        policy: Optional[SN13Policy] = None,
-        now: Optional[datetime] = None,
-        keyword: Optional[str] = None,
+        policy: SN13Policy | None = None,
+        now: datetime | None = None,
+        keyword: str | None = None,
     ) -> tuple[DesirabilityMatch, ScorableDecision]:
         active_policy = policy or SN13Policy()
         match = self.find_for_entity(entity, keyword=keyword)

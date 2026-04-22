@@ -87,13 +87,21 @@ class ProtocolObserverTests(unittest.TestCase):
 
             self.assertEqual(observation.validator_hotkey, "5abc")
             self.assertEqual(observation.payload["data_entity_bucket_id"]["label"], "$BTC")
-            self.assertEqual(observation.response_schema["fields"]["data_entities"]["type"], "array")
+            self.assertEqual(
+                observation.response_schema["fields"]["data_entities"]["type"],
+                "array",
+            )
 
             summary = json.loads((Path(tmpdir) / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["total_queries"], 1)
             self.assertEqual(summary["counts_by_query_type"]["GetDataEntityBucket"], 1)
 
-            lines = (Path(tmpdir) / "queries.jsonl").read_text(encoding="utf-8").strip().splitlines()
+            lines = (
+                (Path(tmpdir) / "queries.jsonl")
+                .read_text(encoding="utf-8")
+                .strip()
+                .splitlines()
+            )
             self.assertEqual(len(lines), 1)
             event = json.loads(lines[0])
             self.assertEqual(event["query_id"], observation.query_id)

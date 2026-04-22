@@ -1,9 +1,8 @@
 # SN13 minimum readiness profile for Jarvis.
 #
-# This file intentionally separates upstream-confirmed miner requirements from
-# Jarvis-owned economic/operator gates. Upstream docs do not publish exact disk,
-# RAM, CPU, or monthly cost floors; the numeric resource values here are Jarvis
-# pilot gates used to avoid accepting work the system cannot store or deliver.
+# This file intentionally keeps runtime readiness separate from task publication.
+# DD, planner support, and economics refusal decide what gets published.
+# Readiness only checks whether Jarvis can serve, intake, export, and archive.
 
 schema_version: 1
 subnet:
@@ -22,35 +21,9 @@ upstream_confirmed:
   local_database_required: true
   s3_upload_requires_hotkey_signature: true
   s3_auth_url_default: "https://data-universe-api.api.macrocosmos.ai"
-  source_access:
-    x:
-      minimum_one_of:
-        - env: APIFY_API_TOKEN
-          description: Apify token for X/Twitter scraper actors.
-        - env: JARVIS_SN13_X_OPERATOR_ENDPOINT
-          description: Jarvis-managed external X operator provider.
-    reddit:
-      minimum_one_of:
-        - env: APIFY_API_TOKEN
-          description: Apify token for Reddit scraper actors.
-        - env_group:
-            - REDDIT_CLIENT_ID
-            - REDDIT_CLIENT_SECRET
-            - REDDIT_USERNAME
-            - REDDIT_PASSWORD
-          description: Free personal Reddit OAuth/script account path.
-        - env: JARVIS_SN13_REDDIT_OPERATOR_ENDPOINT
-          description: Jarvis-managed external Reddit operator provider.
-
 jarvis_economic_gates:
   disk_free_gb_blocker: 10
   disk_free_gb_recommended: 50
-  min_operator_quality_score: 0.8
-  min_operator_daily_capacity_items: 100
-  require_operator_cost_budget: true
-  require_rate_limit_budget: true
-  require_terms_compliant_source_access: true
-  require_source_specific_credentials_before_assignment: true
 
 capability_gates:
   can_serve_validators:
@@ -65,23 +38,6 @@ capability_gates:
     requires:
       - local_db_healthy
       - disk_above_blocker_floor
-      - operator_budget_available
-      - operator_quality_floor
-      - operator_daily_capacity_floor
-  jarvis_can_publish_x_operator_tasks:
-    requires:
-      - can_serve_validators
-      - x_source_access_configured
-      - operator_budget_available
-      - operator_quality_floor
-      - operator_daily_capacity_floor
-  jarvis_can_publish_reddit_operator_tasks:
-    requires:
-      - can_serve_validators
-      - reddit_source_access_configured
-      - operator_budget_available
-      - operator_quality_floor
-      - operator_daily_capacity_floor
   jarvis_can_export_upstream_s3:
     requires:
       - can_serve_validators

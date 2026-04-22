@@ -4,7 +4,6 @@ from subnets.sn13.intake import OperatorSubmission, SubmissionProvenance
 from subnets.sn13.models import DataSource, time_bucket_from_datetime
 from subnets.sn13.storage import SQLiteStorage
 
-
 BASE_TIME = datetime(2026, 4, 21, 12, 0, tzinfo=timezone.utc)
 
 

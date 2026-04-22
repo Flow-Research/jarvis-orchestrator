@@ -2,15 +2,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import docker
-import pytest
 import pyarrow.parquet as pq
+import pytest
 from testcontainers.core.container import DockerContainer
 
 from subnets.sn13.export import EXPECTED_COLUMNS_X, SN13ExportJob, SN13ParquetExporter
 from subnets.sn13.intake import OperatorSubmission, SubmissionProvenance
 from subnets.sn13.models import DataSource
 from subnets.sn13.storage import SQLiteStorage
-
 
 pytestmark = pytest.mark.integration
 

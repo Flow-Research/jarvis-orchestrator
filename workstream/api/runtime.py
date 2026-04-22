@@ -27,7 +27,7 @@ def runtime_configuration(env: dict[str, str] | None = None) -> dict[str, object
         settings = WorkstreamAPISettings.from_env(
             {
                 **values,
-                "JARVIS_OPERATOR_REQUIRE_AUTH": "0",
+                "JARVIS_WORKSTREAM_REQUIRE_AUTH": "0",
             }
         )
 

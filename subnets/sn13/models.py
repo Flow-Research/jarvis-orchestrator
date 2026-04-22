@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -40,7 +40,7 @@ def datetime_from_time_bucket(bucket_id: int) -> datetime:
     return datetime.fromtimestamp(bucket_id * 3600, tz=timezone.utc)
 
 
-def normalize_label(value: Optional[str]) -> Optional[str]:
+def normalize_label(value: str | None) -> str | None:
     """Normalize labels to the stable form used by SN13-style storage."""
     if value is None:
         return None
@@ -79,10 +79,10 @@ class DataEntity(BaseModel):
     uri: str = Field(..., min_length=1)
     datetime: datetime
     source: DataSource
-    label: Optional[Label] = None
+    label: Label | None = None
     content: bytes = Field(..., min_length=1)
-    content_size_bytes: Optional[int] = Field(default=None, ge=1)
-    scraped_at: Optional[datetime] = None
+    content_size_bytes: int | None = Field(default=None, ge=1)
+    scraped_at: datetime | None = None
 
     @field_validator("uri")
     @classmethod
@@ -111,13 +111,14 @@ class DataEntity(BaseModel):
         return json.dumps(value, sort_keys=True, ensure_ascii=False).encode(DEFAULT_ENTITY_ENCODING)
 
     @model_validator(mode="after")
-    def validate_size(self) -> "DataEntity":
+    def validate_size(self) -> DataEntity:
         actual_size = len(self.content)
         if self.content_size_bytes is None:
             object.__setattr__(self, "content_size_bytes", actual_size)
         elif self.content_size_bytes != actual_size:
             raise ValueError(
-                f"content_size_bytes={self.content_size_bytes} does not match actual bytes={actual_size}"
+                f"content_size_bytes={self.content_size_bytes} does not match "
+                f"actual bytes={actual_size}"
             )
         return self
 
@@ -126,7 +127,7 @@ class DataEntity(BaseModel):
         return time_bucket_from_datetime(self.datetime)
 
     @property
-    def bucket_id(self) -> "DataEntityBucketId":
+    def bucket_id(self) -> DataEntityBucketId:
         return DataEntityBucketId(
             time_bucket=self.time_bucket,
             source=self.source,
@@ -174,7 +175,7 @@ class DataEntityBucketId(BaseModel):
 
     time_bucket: TimeBucket
     source: DataSource
-    label: Optional[Label] = None
+    label: Label | None = None
 
     @field_validator("label")
     @classmethod
@@ -194,10 +195,10 @@ class DataEntityBucket(BaseModel):
 
     id: DataEntityBucketId
     entities: list[DataEntity] = Field(default_factory=list)
-    size_bytes: Optional[int] = Field(default=None, ge=0)
+    size_bytes: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
-    def validate_size(self) -> "DataEntityBucket":
+    def validate_size(self) -> DataEntityBucket:
         computed = sum(entity.content_size_bytes for entity in self.entities)
         if self.size_bytes is None:
             object.__setattr__(self, "size_bytes", computed)
@@ -212,7 +213,7 @@ class DataEntityBucket(BaseModel):
         return self.id.source
 
     @property
-    def label(self) -> Optional[str]:
+    def label(self) -> str | None:
         return self.id.label
 
     @property
@@ -252,7 +253,7 @@ class DataEntityIndexEntry(BaseModel):
         return self.bucket.source
 
     @property
-    def label(self) -> Optional[str]:
+    def label(self) -> str | None:
         return self.bucket.label
 
     @property
@@ -330,7 +331,7 @@ class DataQueryResponse(BaseModel):
         return self.bucket.source
 
     @property
-    def label(self) -> Optional[str]:
+    def label(self) -> str | None:
         return self.bucket.label
 
     @property

@@ -57,7 +57,7 @@ def test_complete_positive_margin_task_can_be_taken():
     assert decision.s3_storage_cost_owner == "upstream_destination_not_jarvis_bucket"
 
 
-def test_missing_inputs_block_real_assignment():
+def test_missing_inputs_block_real_publication():
     decision = evaluate_task_economics(
         TaskEconomicsInput(source=DataSource.REDDIT, label="r/bittensor")
     )
@@ -68,7 +68,7 @@ def test_missing_inputs_block_real_assignment():
     assert "missing_payout_basis" in decision.blockers
 
 
-def test_cost_above_cap_and_negative_margin_block_assignment():
+def test_cost_above_cap_and_negative_margin_block_publication():
     decision = evaluate_task_economics(
         _valid_task(
             max_task_cost=10.0,
@@ -82,14 +82,14 @@ def test_cost_above_cap_and_negative_margin_block_assignment():
     assert "expected_margin_negative" in decision.blockers
 
 
-def test_duplicate_rate_above_upstream_threshold_blocks_assignment():
+def test_duplicate_rate_above_upstream_threshold_blocks_publication():
     decision = evaluate_task_economics(_valid_task(expected_duplicate_rate=0.11))
 
     assert decision.can_take_task is False
     assert "expected_duplicate_rate_exceeds_sn13_threshold" in decision.blockers
 
 
-def test_low_validation_probability_blocks_assignment():
+def test_low_validation_probability_blocks_publication():
     decision = evaluate_task_economics(_valid_task(validation_pass_probability=0.60))
 
     assert decision.can_take_task is False

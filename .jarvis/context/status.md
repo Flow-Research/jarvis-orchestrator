@@ -14,13 +14,13 @@
 - Jarvis administrators use `jarvis-miner`; personal operators use the FastAPI workstream API only.
 - `python -m cli` is only for low-level packaging/debug fallback.
 - Test coverage has been expanded:
-  - SN13 non-integration slice currently covers 88 tests
-  - governance/CLI/readiness/economics focused slice currently covers 69 tests
+  - full non-integration suite currently covers 267 tests with an 80% coverage floor
+  - governance/CLI/workstream/readiness focused slice currently covers 82 tests
   - Testcontainers integration slice validates export artifacts across a real Docker container boundary
   - `testcontainers` is a dev dependency
 - CI has been updated:
-  - GitHub Actions test workflow runs `uv`, Docker verification, unit tests, and Testcontainers integration tests
-  - CircleCI config now uses Python 3.12, `uv`, `setup_remote_docker`, unit tests, and Testcontainers integration tests
+  - GitHub Actions test workflow runs `uv`, Docker verification, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
+  - CircleCI config now uses Python 3.12, `uv`, `setup_remote_docker`, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
 - SN13 has been reset onto:
   - canonical miner models
   - operator intake models
@@ -61,12 +61,13 @@
   - old validator-query decomposition modules
   - old mock query scripts
   - generated local runtime state, cache, SQLite data, logs, and pycache
-- SN13 minimum readiness and economic gating is now implemented:
+- SN13 runtime readiness and economic gating are now implemented:
   - `subnets/sn13/config/minimum_requirements.yaml`
   - `subnets/sn13/readiness.py`
   - `subnets/sn13/docs/MINIMUM_REQUIREMENTS.md`
   - `tests/test_sn13_readiness.py`
-  - separates upstream miner requirements from Jarvis-owned disk, budget, source-access, and operator gates
+  - readiness is limited to Jarvis runtime, intake, export, and archive capability
+  - task publication is controlled by DD, planner support, and economics refusal, not readiness source credentials
 - CLI now exposes first-class SN13 operations:
   - `jarvis-miner sn13 readiness`
   - `jarvis-miner sn13 dd refresh`
