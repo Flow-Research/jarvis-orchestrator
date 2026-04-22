@@ -10,33 +10,17 @@ internal models so tests can prove compatibility without a live validator.
 from __future__ import annotations
 
 import json
-import sys
 from collections import defaultdict
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-try:
-    from ..models import (
-        DataEntity,
-        DataEntityBucketId,
-        DataSource,
-        MinerIndex,
-        normalize_label,
-    )
-    from ..storage import StorageBackend
-except ImportError:
-    _listener_dir = Path(__file__).parent
-    _parent_dir = _listener_dir.parent
-    if str(_parent_dir) not in sys.path:
-        sys.path.insert(0, str(_parent_dir))
-    from models import (  # type: ignore
-        DataEntity,
-        DataEntityBucketId,
-        DataSource,
-        MinerIndex,
-        normalize_label,
-    )
-    from storage import StorageBackend  # type: ignore
+from ..models import (
+    DataEntity,
+    DataEntityBucketId,
+    DataSource,
+    MinerIndex,
+    normalize_label,
+)
+from ..storage import StorageBackend
 
 PROTOCOL_VERSION = 4
 BULK_BUCKETS_COUNT_LIMIT = 100
@@ -123,7 +107,9 @@ def miner_index_to_upstream_compressed(index: MinerIndex) -> dict[str, Any]:
     Upstream shape:
     `{ "sources": { source_id: [{ label, time_bucket_ids, sizes_bytes }] } }`
     """
-    grouped: dict[int, dict[Optional[str], list[tuple[int, int]]]] = defaultdict(lambda: defaultdict(list))
+    grouped: dict[int, dict[str | None, list[tuple[int, int]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
 
     for block in index.blocks:
         source_id = upstream_source_id(block.source)

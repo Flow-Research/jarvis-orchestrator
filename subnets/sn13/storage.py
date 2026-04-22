@@ -10,44 +10,25 @@ DataEntity rows, and served from there.
 from __future__ import annotations
 
 import sqlite3
-import sys
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Optional
 
-_dir = Path(__file__).parent
-if str(_dir) not in sys.path:
-    sys.path.insert(0, str(_dir))
-
-try:
-    from .intake import OperatorSubmission
-    from .models import (
-        DataEntity,
-        DataEntityBucket,
-        DataEntityBucketId,
-        DataEntityIndexEntry,
-        DataQueryResponse,
-        DataSource,
-        MinerIndex,
-        ensure_utc,
-        normalize_label,
-        normalize_uri,
-    )
-except ImportError:
-    from intake import OperatorSubmission
-    from models import (
-        DataEntity,
-        DataEntityBucket,
-        DataEntityBucketId,
-        DataEntityIndexEntry,
-        DataQueryResponse,
-        DataSource,
-        MinerIndex,
-        ensure_utc,
-        normalize_label,
-        normalize_uri,
-    )
+from .intake import OperatorSubmission
+from .models import (
+    DataEntity,
+    DataEntityBucket,
+    DataEntityBucketId,
+    DataEntityIndexEntry,
+    DataQueryResponse,
+    DataSource,
+    MinerIndex,
+    ensure_utc,
+    normalize_label,
+    normalize_uri,
+)
 
 
 class StorageError(Exception):
@@ -94,11 +75,11 @@ class StorageBackend(ABC):
     def list_entities(
         self,
         *,
-        source: Optional[DataSource] = None,
-        label: Optional[str] = None,
-        start_time_bucket: Optional[int] = None,
-        end_time_bucket: Optional[int] = None,
-        limit: Optional[int] = None,
+        source: DataSource | None = None,
+        label: str | None = None,
+        start_time_bucket: int | None = None,
+        end_time_bucket: int | None = None,
+        limit: int | None = None,
     ) -> list[DataEntity]:
         pass
 
@@ -106,7 +87,7 @@ class StorageBackend(ABC):
     def query_bucket(
         self,
         source: DataSource,
-        label: Optional[str],
+        label: str | None,
         time_bucket: int,
         limit: int = 100,
     ) -> DataQueryResponse:
@@ -218,8 +199,16 @@ class SQLiteStorage(StorageBackend):
         connection.row_factory = sqlite3.Row
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            yield connection
+        finally:
+            connection.close()
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             cursor = connection.cursor()
             cursor.execute(self.ENTITY_TABLE)
             cursor.execute(self.SUBMISSION_TABLE)
@@ -239,12 +228,19 @@ class SQLiteStorage(StorageBackend):
         entity = submission.to_data_entity()
         accepted_at = datetime.now(timezone.utc).isoformat()
 
-        with self._connect() as connection:
+        with self._connection() as connection:
             cursor = connection.cursor()
             cursor.execute(
                 """
                 INSERT INTO data_entities (
-                    uri, datetime, time_bucket, source, label, content, content_size_bytes, scraped_at
+                    uri,
+                    datetime,
+                    time_bucket,
+                    source,
+                    label,
+                    content,
+                    content_size_bytes,
+                    scraped_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(uri) DO UPDATE SET
                     datetime=excluded.datetime,
@@ -315,7 +311,7 @@ class SQLiteStorage(StorageBackend):
         return stored
 
     def uri_exists(self, uri: str) -> bool:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 "SELECT 1 FROM data_entities WHERE uri = ? LIMIT 1",
                 (normalize_uri(uri),),
@@ -329,7 +325,7 @@ class SQLiteStorage(StorageBackend):
         details: str = "",
     ) -> None:
         rejected_at = datetime.now(timezone.utc).isoformat()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT OR REPLACE INTO rejected_submissions (
@@ -359,7 +355,7 @@ class SQLiteStorage(StorageBackend):
 
     def record_duplicate(self, submission: OperatorSubmission, existing_uri: str) -> None:
         observed_at = datetime.now(timezone.utc).isoformat()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO duplicate_observations (
@@ -382,10 +378,16 @@ class SQLiteStorage(StorageBackend):
             connection.commit()
 
     def get_operator_quality_stats(self, operator_id: str) -> dict:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
-                SELECT operator_id, accepted_scorable, accepted_non_scorable, rejected, duplicate, updated_at
+                SELECT
+                    operator_id,
+                    accepted_scorable,
+                    accepted_non_scorable,
+                    rejected,
+                    duplicate,
+                    updated_at
                 FROM operator_quality_stats
                 WHERE operator_id = ?
                 """,
@@ -402,8 +404,43 @@ class SQLiteStorage(StorageBackend):
             }
         return dict(row)
 
+    def audit_summary(self) -> dict[str, int]:
+        with self._connection() as connection:
+            entity_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM data_entities"
+            ).fetchone()["count"]
+            accepted_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM operator_submissions"
+            ).fetchone()["count"]
+            rejected_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM rejected_submissions"
+            ).fetchone()["count"]
+            duplicate_count = connection.execute(
+                "SELECT COUNT(*) AS count FROM duplicate_observations"
+            ).fetchone()["count"]
+            distinct_operator_count = connection.execute(
+                """
+                SELECT COUNT(DISTINCT operator_id) AS count
+                FROM (
+                    SELECT operator_id FROM operator_submissions
+                    UNION ALL
+                    SELECT operator_id FROM rejected_submissions
+                    UNION ALL
+                    SELECT operator_id FROM duplicate_observations
+                )
+                """
+            ).fetchone()["count"]
+
+        return {
+            "canonical_entities": int(entity_count),
+            "accepted_submissions": int(accepted_count),
+            "rejected_submissions": int(rejected_count),
+            "duplicate_observations": int(duplicate_count),
+            "operators_seen": int(distinct_operator_count),
+        }
+
     def get_index(self, miner_id: str) -> MinerIndex:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT
@@ -437,11 +474,11 @@ class SQLiteStorage(StorageBackend):
     def list_entities(
         self,
         *,
-        source: Optional[DataSource] = None,
-        label: Optional[str] = None,
-        start_time_bucket: Optional[int] = None,
-        end_time_bucket: Optional[int] = None,
-        limit: Optional[int] = None,
+        source: DataSource | None = None,
+        label: str | None = None,
+        start_time_bucket: int | None = None,
+        end_time_bucket: int | None = None,
+        limit: int | None = None,
     ) -> list[DataEntity]:
         where_parts: list[str] = []
         params: list[object] = []
@@ -464,7 +501,7 @@ class SQLiteStorage(StorageBackend):
         if limit is not None:
             params.append(int(limit))
 
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 f"""
                 SELECT uri, datetime, source, label, content, content_size_bytes, scraped_at
@@ -481,7 +518,7 @@ class SQLiteStorage(StorageBackend):
     def query_bucket(
         self,
         source: DataSource,
-        label: Optional[str],
+        label: str | None,
         time_bucket: int,
         limit: int = 100,
     ) -> DataQueryResponse:
@@ -492,7 +529,7 @@ class SQLiteStorage(StorageBackend):
         )
 
         where_sql, params = self._bucket_filter(bucket)
-        with self._connect() as connection:
+        with self._connection() as connection:
             total_row = connection.execute(
                 f"SELECT COUNT(*) AS total_count FROM data_entities WHERE {where_sql}",
                 params,
@@ -518,7 +555,7 @@ class SQLiteStorage(StorageBackend):
         )
 
     def get_all_buckets(self) -> list[DataEntityBucket]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT DISTINCT time_bucket, source, label
@@ -552,7 +589,7 @@ class SQLiteStorage(StorageBackend):
 
     def health_check(self) -> bool:
         try:
-            with self._connect() as connection:
+            with self._connection() as connection:
                 connection.execute("SELECT 1").fetchone()
             return True
         except Exception:
@@ -611,5 +648,5 @@ class SQLiteStorage(StorageBackend):
         )
 
 
-def create_storage(db_path: Optional[Path] = None) -> StorageBackend:
+def create_storage(db_path: Path | None = None) -> StorageBackend:
     return SQLiteStorage(db_path or Path(__file__).parent / "data" / "sn13.sqlite3")

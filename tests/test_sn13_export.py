@@ -7,10 +7,12 @@ import pyarrow.parquet as pq
 from subnets.sn13.export import (
     EXPECTED_COLUMNS_REDDIT,
     EXPECTED_COLUMNS_X,
+    UnsupportedExportSourceError,
     SN13ExportJob,
     SN13ParquetExporter,
     build_export_filename,
     extract_record_count_from_filename,
+    expected_columns_for_source,
     is_valid_export_filename,
     validate_filename_row_count,
 )
@@ -99,6 +101,30 @@ def test_export_filename_format_and_count_validation():
     assert is_valid_export_filename(filename)
     assert extract_record_count_from_filename(filename) == 17
     validate_filename_row_count(filename, 17)
+
+
+def test_export_filename_rejects_invalid_hex_token():
+    try:
+        build_export_filename(record_count=1, now=NOW, hex_token="not-valid")
+    except ValueError as exc:
+        assert "hex_token" in str(exc)
+    else:
+        raise AssertionError("invalid hex token was accepted")
+
+
+def test_filename_row_count_validation_rejects_mismatch():
+    filename = build_export_filename(
+        record_count=2,
+        now=NOW,
+        hex_token="0123456789abcdef",
+    )
+
+    try:
+        validate_filename_row_count(filename, 1)
+    except ValueError as exc:
+        assert "does not match" in str(exc)
+    else:
+        raise AssertionError("mismatched row count was accepted")
 
 
 def test_export_writes_x_parquet_with_upstream_schema_and_row_count(tmp_path):
@@ -236,3 +262,12 @@ def test_export_skips_empty_job_without_creating_file(tmp_path):
     assert result.skipped is True
     assert result.row_count == 0
     assert result.file_path is None
+
+
+def test_export_rejects_unconfirmed_youtube_schema():
+    try:
+        expected_columns_for_source(DataSource.YOUTUBE)
+    except UnsupportedExportSourceError:
+        pass
+    else:
+        raise AssertionError("unconfirmed YouTube export schema was accepted")

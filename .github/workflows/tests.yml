@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  unit-and-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ARROW_USER_SIMD_LEVEL: NONE
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --dev --frozen
+
+      - name: Verify Docker for Testcontainers
+        run: docker info
+
+      - name: Run unit tests
+        run: |
+          uv run pytest -q \
+            tests/test_cli.py \
+            tests/test_engineering_governance.py \
+            tests/test_workstream.py \
+            tests/test_operator_api.py \
+            tests/test_sn13_export.py \
+            tests/test_sn13_protocol_adapter.py \
+            tests/test_sn13_storage.py \
+            tests/test_sn13_tasks.py \
+            tests/test_sn13_planner.py \
+            tests/test_sn13_quality.py \
+            tests/test_sn13_desirability.py \
+            tests/test_sn13_policy.py \
+            tests/test_sn13_contract.py \
+            tests/test_sn13_protocol_observer.py \
+            tests/test_sn13_economics.py \
+            tests/test_sn13_gravity.py \
+            tests/test_sn13_readiness.py \
+            tests/test_sn13_simulator.py \
+            tests/test_sn13_workstream.py \
+            --cov=operator_api \
+            --cov=subnets.sn13 \
+            --cov=workstream \
+            --cov-report=term-missing
+
+      - name: Run Testcontainers integration tests
+        run: uv run pytest -q -m integration tests/test_sn13_testcontainers.py

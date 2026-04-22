@@ -2,13 +2,16 @@
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from cli import cli  # noqa: E402
 import cli.main as cli_main
+from cli import cli  # noqa: E402
+from workstream.sqlite_store import SQLiteWorkstream
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -17,6 +20,37 @@ def _write_config(tmp_path: Path, content: str) -> Path:
     path = tmp_path / "config.yaml"
     path.write_text(content)
     return path
+
+
+def _publication_economics_args() -> list[str]:
+    return [
+        "--max-task-cost",
+        "20",
+        "--expected-reward",
+        "30",
+        "--expected-submitted",
+        "1200",
+        "--expected-accepted",
+        "900",
+        "--duplicate-rate",
+        "0.04",
+        "--rejection-rate",
+        "0.10",
+        "--validation-pass-probability",
+        "0.95",
+        "--payout-basis",
+        "accepted_scorable_record",
+        "--operator-payout",
+        "7",
+        "--scraper-provider-cost",
+        "4",
+        "--proxy-cost",
+        "1",
+        "--compute-cost",
+        "0.5",
+        "--risk-reserve",
+        "2",
+    ]
 
 
 VALID_CONFIG = """
@@ -113,12 +147,12 @@ class _FakeBT:
         self.wallets = []
         self.subtensors = []
 
-    def Wallet(self, name: str):
+    def Wallet(self, name: str):  # noqa: N802
         wallet = _FakeWallet(name)
         self.wallets.append(wallet)
         return wallet
 
-    def Subtensor(self, network: str):
+    def Subtensor(self, network: str):  # noqa: N802
         subtensor = _FakeSubtensor(network)
         self.subtensors.append(subtensor)
         return subtensor
@@ -142,6 +176,7 @@ class TestHelp:
         result = runner.invoke(cli, [])
         assert result.exit_code == 0
         assert "Jarvis-Miner" in result.output
+        assert "O R C H E S T R A T O R" in result.output
 
     def test_main_help(self, runner: CliRunner):
         result = runner.invoke(cli, ["--help"])
@@ -159,6 +194,41 @@ class TestHelp:
     def test_network_price_help(self, runner: CliRunner):
         result = runner.invoke(cli, ["network", "price", "--help"])
         assert result.exit_code == 0
+
+    def test_monitor_help_and_legacy_aliases_are_visible(self, runner: CliRunner):
+        result = runner.invoke(cli, ["--help"])
+        assert result.exit_code == 0
+        assert "monitor" in result.output
+        assert "workstream" in result.output
+        assert "watch" in result.output
+        assert "deregister-check" in result.output
+
+        monitor_result = runner.invoke(cli, ["monitor", "--help"])
+        assert monitor_result.exit_code == 0
+        assert "price" in monitor_result.output
+        assert "register" in monitor_result.output
+        assert "deregister-check" in monitor_result.output
+
+    def test_workstream_help_is_admin_facing(self, runner: CliRunner):
+        result = runner.invoke(cli, ["workstream", "serve", "--help"])
+
+        assert result.exit_code == 0
+        assert "Serve the workstream HTTP boundary" in result.output
+        assert "--host" in result.output
+        assert "--port" in result.output
+
+        root_help = runner.invoke(cli, ["workstream", "--help"])
+        assert root_help.exit_code == 0
+        assert "serve" in root_help.output
+        assert "status" in root_help.output
+        assert "tasks" in root_help.output
+
+    def test_workstream_serve_fails_cleanly_without_auth_config(self, runner: CliRunner):
+        result = runner.invoke(cli, ["workstream", "serve"])
+
+        assert result.exit_code == 1
+        assert "workstream api auth is required" in result.output.lower()
+        assert "jarvis_operator_secrets_json" in result.output.lower()
 
 
 # ── Validate command ─────────────────────────────────────────────────────
@@ -233,7 +303,9 @@ class TestWalletCommands:
         assert "created" in result.output.lower()
         assert fake_bt.wallets[0].name == "jarvis"
 
-    def test_wallet_info_uses_configured_wallets(self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_wallet_info_uses_configured_wallets(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         fake_bt = _FakeBT()
         monkeypatch.setattr(cli_main, "get_bittensor", lambda: fake_bt)
 
@@ -327,7 +399,9 @@ class TestMinerCommands:
         assert process_calls[0]["env"]["ARROW_USER_SIMD_LEVEL"] == "NONE"
         assert process_calls[0]["start_new_session"] is True
 
-    def test_miner_stop_updates_state(self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_miner_stop_updates_state(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         project_root = tmp_path / "repo"
         subnet_dir = project_root / "subnets" / "sn13"
         subnet_dir.mkdir(parents=True)
@@ -361,7 +435,10 @@ class TestNetworkCommands:
         fake_bt = _FakeBT()
         monkeypatch.setattr(cli_main, "get_bittensor", lambda: fake_bt)
 
-        result = runner.invoke(cli, ["network", "register", "--subnet", "13", "--wallet", "sn13miner"])
+        result = runner.invoke(
+            cli,
+            ["network", "register", "--subnet", "13", "--wallet", "sn13miner"],
+        )
         assert result.exit_code == 0
         assert "registered successfully" in result.output.lower()
         assert fake_bt.subtensors[0].register_calls == [("sn13miner", 13)]
@@ -383,3 +460,783 @@ class TestNetworkCommands:
         assert result.exit_code == 0
         assert "context SN13" in result.output
         assert "τ7.250000" in result.output
+
+
+class TestMonitorCommands:
+    def test_monitor_watch_uses_modern_quiet_dashboard(
+        self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.deregister as deregister_module
+        import miner_tools.monitor as monitor_module
+
+        class FakeMonitor:
+            def __init__(self, global_cfg, subnets):
+                self.global_cfg = global_cfg
+                self.subnets = subnets
+
+            async def start(self):
+                return None
+
+        class FakeDeregisterMonitor:
+            has_entries = False
+
+            def __init__(self, global_cfg, subnets):
+                self.global_cfg = global_cfg
+                self.subnets = subnets
+
+            async def start(self):
+                return None
+
+        monkeypatch.setattr(monitor_module, "Monitor", FakeMonitor)
+        monkeypatch.setattr(deregister_module, "DeregisterMonitor", FakeDeregisterMonitor)
+
+        result = runner.invoke(cli, ["-c", str(config_path), "monitor", "watch"])
+
+        assert result.exit_code == 0
+        assert "JARVIS ORCHESTRATOR" in result.output
+        assert "Registration Watch" in result.output
+        assert "Watched Subnets" in result.output
+        assert "Running quietly" in result.output
+        assert "Polling every" not in result.output
+
+    def test_monitor_price_uses_configured_thresholds(
+        self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.fetcher as fetcher
+
+        async def fake_fetch_burn_cost(*args, **kwargs):
+            return type("Reading", (), {"cost_tao": 0.25})()
+
+        monkeypatch.setattr(fetcher, "fetch_burn_cost", fake_fetch_burn_cost)
+        monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+
+        result = runner.invoke(cli, ["-c", str(config_path), "monitor", "price", "13"])
+
+        assert result.exit_code == 0
+        assert "Registration Burn Cost" in result.output
+        assert "0.250000" in result.output
+        assert "EXCELLENT" in result.output
+
+    def test_legacy_price_alias_still_works(
+        self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.fetcher as fetcher
+
+        async def fake_fetch_burn_cost(*args, **kwargs):
+            return type("Reading", (), {"cost_tao": 0.75})()
+
+        monkeypatch.setattr(fetcher, "fetch_burn_cost", fake_fetch_burn_cost)
+        monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+
+        result = runner.invoke(cli, ["-c", str(config_path), "price", "13"])
+
+        assert result.exit_code == 0
+        assert "0.750000" in result.output
+        assert "FAIR" in result.output
+
+    def test_monitor_register_dry_run_uses_config_wallet_without_burning(
+        self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.fetcher as fetcher
+
+        async def fake_fetch_burn_cost(*args, **kwargs):
+            return type("Reading", (), {"cost_tao": 0.1})()
+
+        burned_calls = []
+        monkeypatch.setattr(fetcher, "fetch_burn_cost", fake_fetch_burn_cost)
+        monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+        monkeypatch.setattr(
+            fetcher,
+            "burned_register_sdk",
+            lambda *args, **kwargs: burned_calls.append((args, kwargs)),
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "-c",
+                str(config_path),
+                "monitor",
+                "register",
+                "13",
+                "--wallet",
+                "jarvis",
+                "--hotkey",
+                "hot",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Dry run" in result.output
+        assert "wallet=jarvis" in result.output
+        assert burned_calls == []
+
+    def test_deregister_check_reports_missing_config_entries(
+        self, runner: CliRunner, config_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import miner_tools.fetcher as fetcher
+
+        monkeypatch.setattr(fetcher, "close_subtensor", lambda: None)
+
+        result = runner.invoke(cli, ["-c", str(config_path), "deregister-check"])
+
+        assert result.exit_code == 0
+        assert "No deregister entries configured" in result.output
+
+
+class TestSN13Commands:
+    def test_sn13_dd_show_requires_real_cache_by_default(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(cli, ["sn13", "dd", "show"])
+
+        assert result.exit_code == 1
+        assert "Run `jarvis-miner sn13 dd refresh`" in result.output
+
+    def test_sn13_dd_show_can_use_sample_desirability(self, runner: CliRunner):
+        result = runner.invoke(cli, ["sn13", "dd", "show", "--sample-dd"])
+
+        assert result.exit_code == 0
+        assert "Dynamic Desirability Jobs" in result.output
+        assert "#bittensor" in result.output
+        assert "built-in simulator sample" in result.output
+
+    def test_sn13_dd_refresh_writes_real_cache(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        from subnets.sn13 import gravity
+
+        monkeypatch.setattr(
+            gravity,
+            "fetch_gravity_records",
+            lambda **kwargs: [
+                {
+                    "id": "gravity_x",
+                    "weight": 2.0,
+                    "params": {
+                        "keyword": None,
+                        "platform": "x",
+                        "label": "#macrocosmos",
+                        "post_start_datetime": None,
+                        "post_end_datetime": None,
+                    },
+                }
+            ],
+        )
+
+        result = runner.invoke(cli, ["sn13", "dd", "refresh", "--json-output"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["record_count"] == 1
+        assert Path(payload["cache_path"]).exists()
+
+    def test_sn13_plan_tasks_outputs_json(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "tasks",
+                "--db-path",
+                str(db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "1",
+                "--sample-dd",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["desirability_jobs"] == 2
+        assert len(payload["tasks"]) == 1
+        assert payload["tasks"][0]["task_id"].startswith("task_")
+
+    def test_sn13_plan_tasks_uses_env_db_path_by_default(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        env_db_path = tmp_path / "custom-sn13.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "tasks",
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "1",
+                "--sample-dd",
+                "--json-output",
+            ],
+            env={"JARVIS_SN13_DB_PATH": str(env_db_path)},
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["db_path"] == str(env_db_path)
+
+    def test_sn13_plan_publish_writes_durable_workstream(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        workstream_db_path = project_root / "data" / "workstream.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "publish",
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+                *_publication_economics_args(),
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["published_tasks"] == 2
+        assert payload["refused_tasks"] == 0
+        assert payload["assignment_mode"] == "open_competitive_intake"
+
+        second = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "publish",
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+                *_publication_economics_args(),
+            ],
+        )
+
+        assert second.exit_code == 0
+        workstream = SQLiteWorkstream(workstream_db_path)
+        available = workstream.list_available(subnet="sn13")
+        assert len(available) == 2
+        assert all(task.contract["task_id"] == task.task_id for task in available)
+
+    def test_sn13_plan_publish_refuses_tasks_with_missing_economics(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        workstream_db_path = project_root / "data" / "workstream.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "publish",
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["planned_tasks"] == 2
+        assert payload["published_tasks"] == 0
+        assert payload["refused_tasks"] == 2
+        assert "missing_max_task_cost" in payload["refusals"][0]["blockers"]
+        workstream = SQLiteWorkstream(workstream_db_path)
+        assert workstream.list_available(subnet="sn13") == []
+
+    def test_sn13_plan_publish_console_entrypoint_works_end_to_end(self, tmp_path: Path):
+        db_path = tmp_path / "sn13.sqlite3"
+        workstream_db_path = tmp_path / "workstream.sqlite3"
+        command = [
+            sys.executable,
+            "-m",
+            "cli.main",
+            "sn13",
+            "plan",
+            "publish",
+            "--db-path",
+            str(db_path),
+            "--workstream-db-path",
+            str(workstream_db_path),
+            "--target-items",
+            "2",
+            "--max-tasks",
+            "2",
+            "--sample-dd",
+            "--json-output",
+            *_publication_economics_args(),
+        ]
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+
+        result = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["published_tasks"] == 2
+        assert payload["refused_tasks"] == 0
+
+    def test_sn13_scheduler_run_refreshes_and_publishes_once(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        workstream_db_path = project_root / "data" / "workstream.sqlite3"
+        cache_dir = project_root / "subnets" / "sn13" / "cache" / "gravity"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        from subnets.sn13 import gravity
+
+        def _fake_refresh_gravity_cache(*, cache_dir, timeout_seconds=30, url=None):
+            return gravity.write_gravity_cache(
+                [
+                    {
+                        "id": "gravity_x",
+                        "weight": 4.0,
+                        "params": {"platform": "x", "label": "#macrocosmos"},
+                    }
+                ],
+                cache_dir=cache_dir,
+                source_url="https://example.test/total.json",
+            )
+
+        monkeypatch.setattr(gravity, "refresh_gravity_cache", _fake_refresh_gravity_cache)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "scheduler",
+                "run",
+                "--once",
+                "--cache-dir",
+                str(cache_dir),
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--json-output",
+                *_publication_economics_args(),
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["desirability_jobs"] == 1
+        assert payload["planned_tasks"] == 1
+        assert payload["published_tasks"] == 1
+
+    def test_sn13_economics_estimate_outputs_take_decision(self, runner: CliRunner):
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "economics",
+                "estimate",
+                "--source",
+                "X",
+                "--label",
+                "#bittensor",
+                "--desirability-job-id",
+                "gravity_x",
+                "--desirability-weight",
+                "2",
+                "--quantity-target",
+                "1000",
+                "--max-task-cost",
+                "20",
+                "--expected-reward",
+                "30",
+                "--expected-submitted",
+                "1200",
+                "--expected-accepted",
+                "900",
+                "--duplicate-rate",
+                "0.04",
+                "--rejection-rate",
+                "0.10",
+                "--validation-pass-probability",
+                "0.95",
+                "--payout-basis",
+                "accepted_scorable_record",
+                "--operator-payout",
+                "7",
+                "--scraper-provider-cost",
+                "4",
+                "--proxy-cost",
+                "1",
+                "--compute-cost",
+                "0.5",
+                "--risk-reserve",
+                "2",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["can_take_task"] is True
+        assert payload["total_task_cost"] == 14.5
+        assert payload["expected_margin"] == 15.5
+        assert payload["s3_storage_cost_owner"] == "upstream_destination_not_jarvis_bucket"
+
+    def test_sn13_economics_estimate_blocks_missing_inputs(self, runner: CliRunner):
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "economics",
+                "estimate",
+                "--source",
+                "REDDIT",
+                "--label",
+                "r/bittensor",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["can_take_task"] is False
+        assert "missing_max_task_cost" in payload["blockers"]
+        assert "missing_payout_basis" in payload["blockers"]
+
+    def test_sn13_economics_s3_cost_calculates_archive_cost(self, runner: CliRunner):
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "economics",
+                "s3-cost",
+                "--storage-gb-month",
+                "100",
+                "--storage-usd-per-gb-month",
+                "0.023",
+                "--put-requests",
+                "10000",
+                "--put-usd-per-1000",
+                "0.005",
+                "--transfer-out-gb",
+                "7",
+                "--transfer-out-usd-per-gb",
+                "0.09",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["storage_cost"] == 2.3
+        assert payload["put_request_cost"] == 0.05
+        assert payload["transfer_out_cost"] == 0.63
+        assert payload["total"] == 2.98
+        assert "Jarvis-owned archive cost only" in payload["note"]
+
+    def test_sn13_readiness_reports_capabilities(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        subnet_dir = project_root / "subnets" / "sn13"
+        subnet_dir.mkdir(parents=True)
+        (subnet_dir / "state.json").write_text(
+            json.dumps({"pid": 1234, "running": True, "network": "testnet", "wallet": "sn13miner"})
+        )
+
+        home = tmp_path / "home"
+        (home / ".bittensor" / "wallets" / "sn13miner" / "hotkeys").mkdir(parents=True)
+        (home / ".bittensor" / "wallets" / "sn13miner" / "hotkeys" / "default").write_text("hotkey")
+
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+        monkeypatch.setattr(cli_main.Path, "home", lambda: home)
+        monkeypatch.setattr(cli_main.os, "kill", lambda pid, sig: None)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "readiness",
+                "--skip-chain",
+                "--registered",
+                "--operator-budget",
+                "--operator-quality",
+                "0.95",
+                "--operator-capacity",
+                "500",
+            ],
+            env={"APIFY_API_TOKEN": "token"},
+        )
+
+        assert result.exit_code == 0
+        assert "SN13 Readiness" in result.output
+        assert "can_serve_validators" in result.output
+        assert "jarvis_can_publish_x_operator_t" in result.output
+
+    def test_sn13_operator_and_validator_simulation_share_storage(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        operator_result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "simulate",
+                "operator",
+                "--db-path",
+                str(db_path),
+                "--source",
+                "X",
+                "--label",
+                "#bittensor",
+                "--count",
+                "2",
+            ],
+        )
+
+        assert operator_result.exit_code == 0
+        assert "Stored 2 simulated X submission" in operator_result.output
+
+        validator_result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "simulate",
+                "validator",
+                "--db-path",
+                str(db_path),
+                "--query",
+                "bucket",
+                "--source",
+                "X",
+                "--label",
+                "#bittensor",
+                "--limit",
+                "5",
+                "--json-output",
+            ],
+        )
+
+        assert validator_result.exit_code == 0
+        payload = json.loads(validator_result.output)
+        assert payload["summary"]["query"] == "GetDataEntityBucket"
+        assert payload["summary"]["entities"] == 2
+
+    def test_workstream_status_reports_runtime_and_store_counts(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        workstream_db_path = project_root / "data" / "workstream.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        publish = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "publish",
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+                *_publication_economics_args(),
+            ],
+        )
+        assert publish.exit_code == 0
+
+        workstream = SQLiteWorkstream(workstream_db_path)
+        tasks = workstream.list_tasks(limit=10)
+        workstream.record_acceptance(tasks[0].task_id, accepted_count=2)
+
+        simulate = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "simulate",
+                "operator",
+                "--db-path",
+                str(db_path),
+                "--source",
+                "X",
+                "--label",
+                "#bittensor",
+                "--count",
+                "1",
+            ],
+        )
+        assert simulate.exit_code == 0
+
+        result = runner.invoke(
+            cli,
+            [
+                "workstream",
+                "status",
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--sn13-db-path",
+                str(db_path),
+                "--json-output",
+            ],
+            env={
+                "JARVIS_OPERATOR_ID": "operator_1",
+                "JARVIS_OPERATOR_SECRET": "secret",
+            },
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["auth_required"] is True
+        assert payload["configured_operator_count"] == 1
+        assert payload["total_tasks"] == 2
+        assert payload["open_tasks"] == 1
+        assert payload["completed_tasks"] == 1
+        assert payload["canonical_entities"] == 1
+        assert payload["accepted_submissions"] == 1
+
+    def test_workstream_tasks_lists_filtered_durable_tasks(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        workstream_db_path = project_root / "data" / "workstream.sqlite3"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        publish = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "plan",
+                "publish",
+                "--db-path",
+                str(db_path),
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+                *_publication_economics_args(),
+            ],
+        )
+        assert publish.exit_code == 0
+
+        workstream = SQLiteWorkstream(workstream_db_path)
+        tasks = workstream.list_tasks(limit=10)
+        workstream.record_acceptance(tasks[0].task_id, accepted_count=1)
+
+        result = runner.invoke(
+            cli,
+            [
+                "workstream",
+                "tasks",
+                "--workstream-db-path",
+                str(workstream_db_path),
+                "--status",
+                "open",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["task_count"] == 2
+        assert payload["tasks"][0]["status"] == "open"
+        assert payload["tasks"][0]["accepted_count"] == 1
+
+    def test_sn13_cycle_simulation_outputs_summary(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_root = tmp_path / "repo"
+        db_path = project_root / "subnets" / "sn13" / "data" / "sn13.sqlite3"
+        export_root = project_root / "subnets" / "sn13" / "exports"
+        monkeypatch.setattr(cli_main, "PROJECT_ROOT", project_root)
+
+        result = runner.invoke(
+            cli,
+            [
+                "sn13",
+                "simulate",
+                "cycle",
+                "--db-path",
+                str(db_path),
+                "--export-root",
+                str(export_root),
+                "--target-items",
+                "2",
+                "--max-tasks",
+                "2",
+                "--sample-dd",
+                "--json-output",
+            ],
+        )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["summary"]["desirability_jobs"] == 2
+        assert payload["summary"]["planned_tasks"] == 2
+        assert payload["summary"]["accepted_submissions"] == 4
+        assert payload["summary"]["validator_bucket_entities"] == 2

@@ -52,18 +52,56 @@ def _submission(now: datetime) -> OperatorSubmission:
     )
 
 
-def test_runtime_turns_planner_demand_into_assigned_tasks(tmp_path):
+def test_runtime_turns_planner_demand_into_open_tasks(tmp_path):
     now = datetime(2026, 4, 21, 12, tzinfo=timezone.utc)
     planner = SN13Planner(config=PlannerConfig(default_recent_buckets=1))
     demands = planner.plan(index=MinerIndex(miner_id="miner"), desirability=_snapshot(), now=now)
     runtime = SN13OperatorRuntime(storage=SQLiteStorage(tmp_path / "sn13.sqlite3"))
 
-    tasks = runtime.create_tasks(demands, operator_ids=["operator_1", "operator_2"])
+    tasks = runtime.create_tasks(demands)
 
     assert tasks
-    assert tasks[0].status == OperatorTaskStatus.ASSIGNED
-    assert tasks[0].assigned_operator_id == "operator_1"
+    assert tasks[0].status == OperatorTaskStatus.QUEUED
     assert tasks[0].label == "#macrocosmos"
+    assert tasks[0].desirability_job_id == "macro"
+
+
+def test_task_contract_exposes_workstream_requirements(tmp_path):
+    now = datetime(2026, 4, 21, 12, tzinfo=timezone.utc)
+    planner = SN13Planner(
+        config=PlannerConfig(default_recent_buckets=1, target_items_per_bucket=10)
+    )
+    demands = planner.plan(index=MinerIndex(miner_id="miner"), desirability=_snapshot(), now=now)
+    runtime = SN13OperatorRuntime(storage=SQLiteStorage(tmp_path / "sn13.sqlite3"))
+
+    task = runtime.create_tasks(demands)[0]
+    contract = task.to_workstream_contract()
+
+    assert contract.task_id == task.task_id
+    assert contract.desirability_job_id == "macro"
+    assert contract.desirability_weight == 4.0
+    assert contract.source_requirements.required_content_fields == (
+        "tweet_id",
+        "username",
+        "text",
+        "url",
+        "timestamp",
+    )
+    assert contract.source_requirements.provenance_query_type == "x_label_or_keyword_scrape"
+    assert contract.acceptance.source_created_at_gte == task.source_window_start
+    assert contract.acceptance.source_created_at_lt == task.source_window_end
+    assert contract.delivery_limits.max_records == 10
+    assert contract.delivery_limits.max_total_content_bytes == 10_000_000
+    assert contract.economics.payable_records_cap == 10
+    assert contract.economics.operator_cost_estimate_required is True
+    assert any(
+        requirement.name == "operator_cost_estimate"
+        for requirement in contract.minimum_requirements
+    )
+    assert any(
+        requirement.enforcement == "intake_quality_gate"
+        for requirement in contract.minimum_requirements
+    )
 
 
 def test_runtime_ingests_valid_submission_into_storage(tmp_path):

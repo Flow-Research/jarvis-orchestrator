@@ -2,23 +2,24 @@
 
 ## Now
 
-- Complete SN13 Phase 7 live validator verification.
+- Complete SN13 production hardening before any mainnet claim.
 - Deliver:
-  - run listener against testnet with real validator traffic
-  - capture request versions, payloads, and timeout values
-  - compare captures to protocol adapter assumptions
-  - adjust listener only where captures prove a mismatch
-  - document final request/response inventory
+  - archive/upload pipeline around canonical export artifacts
+  - real listener runtime on canonical SQLite
+  - live validator capture with request/response fixture verification
+  - persistent operator accounting ledger
+  - automated DD refresh/publication operation review
 
 ## Next
 
-- SN13 Phase 8: Production Hardening
-- S3 API upload wrapper around local parquet artifacts
+- harden workstream API edge limits and replay protection
+- add operator capability visibility filters
+- document final operator settlement/accounting policy
 
 ## Later
 
-- Full workstream transport integration
-- Operator payout/credit accounting beyond basic quality stats
+- multi-node workstream deployment path
+- future subnet adapters on the same workstream boundary
 
 ## Notes
 

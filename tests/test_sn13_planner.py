@@ -90,7 +90,9 @@ def test_planner_emits_partial_quantity_for_undercovered_bucket():
             )
         ],
     )
-    planner = SN13Planner(config=PlannerConfig(default_recent_buckets=1, target_items_per_bucket=250))
+    planner = SN13Planner(
+        config=PlannerConfig(default_recent_buckets=1, target_items_per_bucket=250)
+    )
 
     demands = planner.plan(index=index, desirability=_snapshot(), now=now)
     macro = next(demand for demand in demands if demand.label == "#macrocosmos")
@@ -118,8 +120,51 @@ def test_planner_respects_explicit_desirability_window():
     )
     planner = SN13Planner(config=PlannerConfig(default_recent_buckets=5))
 
-    demands = planner.plan(index=MinerIndex(miner_id="miner_hotkey"), desirability=snapshot, now=now)
+    demands = planner.plan(
+        index=MinerIndex(miner_id="miner_hotkey"),
+        desirability=snapshot,
+        now=now,
+    )
 
     assert demands
-    assert all(demand.time_bucket <= int(datetime(2026, 4, 20, 2, tzinfo=timezone.utc).timestamp() // 3600) for demand in demands)
+    max_bucket = int(datetime(2026, 4, 20, 2, tzinfo=timezone.utc).timestamp() // 3600)
+    assert all(demand.time_bucket <= max_bucket for demand in demands)
     assert all(demand.label == "r/bittensor_" for demand in demands)
+
+
+def test_planner_skips_unsupported_sources_by_default():
+    now = datetime(2026, 4, 21, 12, tzinfo=timezone.utc)
+    snapshot = DesirabilitySnapshot.from_upstream_records(
+        [
+            {
+                "id": "youtube_job",
+                "weight": 5.0,
+                "params": {
+                    "keyword": None,
+                    "platform": "youtube",
+                    "label": "#macrocosmos",
+                    "post_start_datetime": None,
+                    "post_end_datetime": None,
+                },
+            },
+            {
+                "id": "x_job",
+                "weight": 1.0,
+                "params": {
+                    "keyword": None,
+                    "platform": "x",
+                    "label": "#macrocosmos",
+                    "post_start_datetime": None,
+                    "post_end_datetime": None,
+                },
+            },
+        ]
+    )
+
+    demands = SN13Planner(config=PlannerConfig(default_recent_buckets=1)).plan(
+        index=MinerIndex(miner_id="miner_hotkey"),
+        desirability=snapshot,
+        now=now,
+    )
+
+    assert [demand.desirability_job_id for demand in demands] == ["x_job"]

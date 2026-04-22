@@ -18,13 +18,16 @@ Already completed:
 - SN13 canonical miner model
 - operator intake boundary
 - SQLite-only storage
-- listener serving from canonical storage
+- validator-facing protocol adapter serving from canonical storage
 - base SN13 docs reset and rewritten
 - Phase 1: Policy Core
 - Phase 2: Desirability Layer
 - Phase 3: Quality and Rejection Layer
 - Phase 4: Operator Demand Planner
 - Phase 5: Operator Task Contract and Intake Runtime
+- Phase 6: Export and Verification Readiness
+- Phase 7A: Local Closed-Loop Simulation
+- cleanup: removed copied upstream repo, old mock query guides, generated local state, and validator-request decomposition prototypes
 
 Current code foundation:
 
@@ -36,7 +39,11 @@ Current code foundation:
 - `subnets/sn13/planner.py`
 - `subnets/sn13/tasks.py`
 - `subnets/sn13/storage.py`
+- `subnets/sn13/export.py`
+- `subnets/sn13/simulator.py`
 - `subnets/sn13/listener/`
+
+The supported work path is workstream-published scrape demand followed by intake enforcement. There is no supported path that decomposes live validator requests into operator tasks.
 
 ## Phase Order
 
@@ -46,8 +53,9 @@ Current code foundation:
 4. Phase 4: Operator Demand Planner
 5. Phase 5: Operator Task Contract and Intake Runtime
 6. Phase 6: Export and Verification Readiness
-7. Phase 7: Live Protocol Alignment
-8. Phase 8: Production Hardening
+7. Phase 7A: Local Closed-Loop Simulation
+8. Phase 7B: Live Protocol Alignment
+9. Phase 8: Production Hardening
 
 ## Phase 1: Policy Core
 
@@ -253,7 +261,48 @@ Prepare canonical data for SN13-compatible export and future validation needs.
 - implement authenticated S3 upload around generated artifacts
 - confirm live validator behavior for partitioned paths and upload API responses
 
-## Phase 7: Live Protocol Alignment
+## Phase 7A: Local Closed-Loop Simulation
+
+Status: implemented locally.
+
+### Goal
+
+Prove the Jarvis SN13 lifecycle before relying on live validator traffic.
+
+### Flow
+
+```text
+Real Gravity/DD cache
+-> planner coverage gap
+-> OperatorTask
+-> simulated personal-operator submission
+-> quality gate
+-> SQLite canonical storage
+-> validator protocol adapter
+-> local parquet export
+```
+
+### Deliverables
+
+- `subnets/sn13/simulator.py`
+- `subnets/sn13/gravity.py`
+- `jarvis-miner sn13 dd refresh`
+- `jarvis-miner sn13 dd show`
+- `jarvis-miner sn13 plan tasks`
+- `jarvis-miner sn13 simulate cycle`
+- tests for the full local cycle
+
+### Exit criteria
+
+- local cycle creates operator tasks from DD
+- real Gravity cache is the default source for DD commands
+- built-in DD samples are explicit `--sample-dd` development fixtures only
+- planner assignment is source-gated to confirmed X and Reddit paths
+- accepted operator submissions are stored in SQLite
+- validator bucket simulation returns stored data through protocol adapter fields
+- export artifacts are created from canonical storage
+
+## Phase 7B: Live Protocol Alignment
 
 Status: adapter implemented; live capture still required.
 
@@ -324,10 +373,10 @@ Not allowed:
 
 ## Immediate Next Step
 
-Start Phase 6 by implementing:
+Implement the real integrations behind the proven local loop:
 
-- `subnets/sn13/export.py`
-- parquet export from canonical SQLite
-- tests for filename, row count, and source-specific schema
-
-That is the next correct unit of work.
+- keep real Gravity/DD refresh as the default demand source
+- publish planned `OperatorTaskContract` records to the workstream
+- connect source-specific operator providers for X and Reddit
+- continue live testnet validator capture to verify timing and payload shape
+- add PM2/systemd service management after the loop is stable

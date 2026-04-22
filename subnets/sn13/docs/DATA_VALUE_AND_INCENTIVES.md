@@ -44,9 +44,16 @@ If a desirable job has a date range, data inside that range is valuable for the 
 
 Implementation:
 
+- `subnets/sn13/gravity.py`
 - `subnets/sn13/desirability.py`
 - `DesirabilitySnapshot`
 - `DesirabilityJob`
+
+Operational rule:
+
+- Jarvis refreshes the real public Gravity aggregate before planning work.
+- Built-in desirability samples are allowed only for tests and local development.
+- A missing Gravity cache blocks operational DD planning until `jarvis-miner sn13 dd refresh` succeeds or a real `--dd-file` is supplied.
 
 Upstream references:
 
@@ -90,7 +97,7 @@ Jarvis does not let operators bypass quality checks because validator penalties 
 ## How Jarvis Turns Incentives Into Operator Work
 
 ```text
-Desirability jobs
+Real Gravity cache
         +
 Policy constants
         +
@@ -117,6 +124,12 @@ The planner suppresses:
 
 - fully covered buckets
 - buckets outside desirable date windows
+- sources not enabled in the current planner configuration
+
+Current source publication gate:
+
+- X and Reddit are enabled for operator work.
+- Other Gravity sources may be visible in `dd show`, but they are not published into the workstream until Jarvis has confirmed source payload validation, export schema, and readiness gates for that source.
 
 ## How Data Is Classified
 

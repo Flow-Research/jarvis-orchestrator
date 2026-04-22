@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -28,6 +27,7 @@ class PlannerConfig(BaseModel):
     task_ttl_minutes: int = Field(default=60, ge=1)
     max_tasks: int = Field(default=50, ge=1)
     default_recent_buckets: int = Field(default=3, ge=1)
+    supported_sources: tuple[DataSource, ...] = (DataSource.X, DataSource.REDDIT)
 
 
 class OperatorDemand(BaseModel):
@@ -37,16 +37,16 @@ class OperatorDemand(BaseModel):
 
     demand_id: str
     source: DataSource
-    label: Optional[str] = None
-    keyword: Optional[str] = None
+    label: str | None = None
+    keyword: str | None = None
     time_bucket: int = Field(..., ge=0)
     priority: float = Field(..., ge=0.0)
     quantity_target: int = Field(..., ge=1)
     existing_items: int = Field(default=0, ge=0)
     expires_at: datetime
     reason: str
-    desirability_job_id: Optional[str] = None
-    desirability_weight: Optional[float] = None
+    desirability_job_id: str | None = None
+    desirability_weight: float | None = None
 
     @field_validator("label")
     @classmethod
@@ -70,8 +70,8 @@ class SN13Planner:
     def __init__(
         self,
         *,
-        policy: Optional[SN13Policy] = None,
-        config: Optional[PlannerConfig] = None,
+        policy: SN13Policy | None = None,
+        config: PlannerConfig | None = None,
     ):
         self.policy = policy or SN13Policy()
         self.config = config or PlannerConfig()
@@ -81,7 +81,7 @@ class SN13Planner:
         *,
         index: MinerIndex,
         desirability: DesirabilitySnapshot,
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ) -> list[OperatorDemand]:
         current_time = ensure_utc(now or datetime.now(timezone.utc))
         current_bucket = self.policy.current_time_bucket(current_time)
@@ -89,6 +89,8 @@ class SN13Planner:
         demands: list[OperatorDemand] = []
 
         for job in desirability.jobs:
+            if job.source not in self.config.supported_sources:
+                continue
             for bucket in self._candidate_buckets(job, current_bucket):
                 if not self._job_bucket_is_valid(job, bucket):
                     continue

@@ -50,8 +50,11 @@ data/
 # Subnet runtime artifacts (generated when miners run)
 subnets/*/state.json
 subnets/*/listener.log
+subnets/*/data/
+subnets/*/exports/
 subnets/*/logs/
 subnets/*/captures/
+subnets/*/cache/
 subnets/*/__pycache__/
 
 # Stray binaries

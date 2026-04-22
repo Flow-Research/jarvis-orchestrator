@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jarvis Test Runner"
+  short_description: "Run and interpret Jarvis verification gates."
+  default_prompt: "Use the Jarvis Test Runner skill to run the correct lint, unit, coverage, and integration checks for the current Jarvis change."

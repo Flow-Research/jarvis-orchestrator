@@ -150,6 +150,23 @@ def test_bind_get_contents_by_buckets_sets_flattened_bucket_content_pairs(tmp_pa
     assert isinstance(pairs[0][1][0], bytes)
 
 
+def test_contents_request_over_bulk_limit_is_left_unbound(tmp_path):
+    storage = SQLiteStorage(tmp_path / "sn13.sqlite3")
+    synapse = SimpleNamespace(
+        version=4,
+        data_entity_bucket_ids=[
+            {"time_bucket": {"id": 1845}, "source": 2, "label": {"value": "$btc"}}
+            for _ in range(101)
+        ],
+        bucket_ids_to_contents=[],
+    )
+
+    result = bind_get_contents_by_buckets_response(synapse, storage=storage)
+
+    assert result == []
+    assert synapse.bucket_ids_to_contents == []
+
+
 def test_bucket_id_parser_accepts_local_and_upstream_shapes():
     upstream = bucket_id_from_synapse(
         {
