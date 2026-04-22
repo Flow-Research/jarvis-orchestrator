@@ -1,0 +1,50 @@
+# SN13 minimum readiness profile for Jarvis.
+#
+# This file intentionally keeps runtime readiness separate from task publication.
+# DD, planner support, and economics refusal decide what gets published.
+# Readiness only checks whether Jarvis can serve, intake, export, and archive.
+
+schema_version: 1
+subnet:
+  name: Data Universe
+  netuid: 13
+  supported_networks:
+    - test
+    - finney
+
+upstream_confirmed:
+  python_min_version: "3.10"
+  gpu_required: false
+  wallet_required: true
+  registered_hotkey_required: true
+  online_miner_required_for_validator_requests: true
+  local_database_required: true
+  s3_upload_requires_hotkey_signature: true
+  s3_auth_url_default: "https://data-universe-api.api.macrocosmos.ai"
+jarvis_economic_gates:
+  disk_free_gb_blocker: 10
+  disk_free_gb_recommended: 50
+
+capability_gates:
+  can_serve_validators:
+    requires:
+      - python_at_or_above_minimum
+      - wallet_configured
+      - hotkey_registered_on_subnet
+      - listener_running_online
+      - local_db_healthy
+      - disk_above_blocker_floor
+  jarvis_can_intake_operator_uploads:
+    requires:
+      - local_db_healthy
+      - disk_above_blocker_floor
+  jarvis_can_export_upstream_s3:
+    requires:
+      - can_serve_validators
+      - s3_auth_url_configured
+      - wallet_hotkey_can_sign
+      - parquet_export_available
+  jarvis_can_archive_to_jarvis_s3:
+    requires:
+      - parquet_export_available
+      - jarvis_archive_bucket_configured

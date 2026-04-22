@@ -1,0 +1,143 @@
+services:
+  registration-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jarvis-orchestrator:local
+    restart: unless-stopped
+    command:
+      - -c
+      - /app/deploy/monitor.mainnet.yaml
+      - monitor
+      - watch
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+    volumes:
+      - ./data:/app/data
+      - ./subnets/sn13/data:/app/subnets/sn13/data
+      - ./subnets/sn13/cache:/app/subnets/sn13/cache
+      - ./subnets/sn13/exports:/app/subnets/sn13/exports
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+      - ./deploy/monitor.mainnet.yaml:/app/deploy/monitor.mainnet.yaml:ro
+
+  workstream-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jarvis-orchestrator:local
+    restart: unless-stopped
+    command:
+      - workstream
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+    ports:
+      - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
+    volumes:
+      - ./data:/app/data
+      - ./subnets/sn13/data:/app/subnets/sn13/data
+      - ./subnets/sn13/cache:/app/subnets/sn13/cache
+      - ./subnets/sn13/exports:/app/subnets/sn13/exports
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  sn13-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jarvis-orchestrator:local
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/run_sn13_scheduler.sh
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+    volumes:
+      - ./data:/app/data
+      - ./subnets/sn13/data:/app/subnets/sn13/data
+      - ./subnets/sn13/cache:/app/subnets/sn13/cache
+      - ./subnets/sn13/exports:/app/subnets/sn13/exports
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+    depends_on:
+      workstream-api:
+        condition: service_healthy
+
+  sn13-listener:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jarvis-orchestrator:local
+    profiles:
+      - listener
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/run_sn13_listener.sh
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+    ports:
+      - "${JARVIS_SN13_LISTENER_BIND_PORT:-8091}:${JARVIS_SN13_LISTENER_PORT:-8091}"
+    volumes:
+      - ./data:/app/data
+      - ./subnets/sn13/data:/app/subnets/sn13/data
+      - ./subnets/sn13/cache:/app/subnets/sn13/cache
+      - ./subnets/sn13/exports:/app/subnets/sn13/exports
+      - ./subnets/sn13/listener:/app/subnets/sn13/listener
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  jarvis-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jarvis-orchestrator:local
+    profiles:
+      - admin
+    command:
+      - config
+      - show
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+    volumes:
+      - ./data:/app/data
+      - ./subnets/sn13/data:/app/subnets/sn13/data
+      - ./subnets/sn13/cache:/app/subnets/sn13/cache
+      - ./subnets/sn13/exports:/app/subnets/sn13/exports
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+      - ./deploy/monitor.mainnet.yaml:/app/deploy/monitor.mainnet.yaml:ro

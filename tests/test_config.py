@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis_miner.config import default_config_path, load_config
+from miner_tools.config import default_config_path, load_config
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -228,6 +228,41 @@ subnets:
         assert subnets[0].alerts.discord.webhook_url == "https://discord.com/real"
         assert subnets[0].alerts.telegram.bot_token == "123:secret"
 
+    def test_resolves_env_vars_for_numeric_and_bool_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv("TEST_THRESHOLD", "0.05")
+        monkeypatch.setenv("TEST_MAX_SPEND", "0.10")
+        monkeypatch.setenv("TEST_AUTO_REGISTER", "1")
+        monkeypatch.setenv("TEST_ENABLED", "true")
+        monkeypatch.setenv("TEST_POLL", "300")
+        monkeypatch.setenv("TEST_MIN_POLL", "60")
+        cfg_path = _write_config(
+            tmp_path,
+            """
+subnets:
+  - netuid: "13"
+    price_threshold_tao: "${TEST_THRESHOLD}"
+    max_spend_tao: "${TEST_MAX_SPEND}"
+    auto_register: "${TEST_AUTO_REGISTER}"
+    enabled: "${TEST_ENABLED}"
+    poll_interval_seconds: "${TEST_POLL}"
+    min_poll_interval_seconds: "${TEST_MIN_POLL}"
+    alerts:
+      discord:
+        webhook_url: "https://discord.test"
+""",
+        )
+        _, subnets = load_config(cfg_path)
+        subnet = subnets[0]
+        assert subnet.netuid == 13
+        assert subnet.price_threshold_tao == 0.05
+        assert subnet.max_spend_tao == 0.10
+        assert subnet.auto_register is True
+        assert subnet.enabled is True
+        assert subnet.poll_interval_seconds == 300
+        assert subnet.min_poll_interval_seconds == 60
+
     def test_missing_env_var_raises(self, tmp_path: Path):
         cfg_path = _write_config(
             tmp_path,
@@ -333,9 +368,9 @@ subnets:
 class TestDefaultConfigPath:
     def test_default(self):
         path = default_config_path()
-        # Config is now inside jarvis_miner package
+        # Config is inside the miner_tools package
         assert path.name == "config.yaml"
-        assert "jarvis_miner" in str(path)
+        assert "miner_tools" in str(path)
 
     def test_from_env(self, monkeypatch):
         monkeypatch.setenv("JARVIS_CONFIG", "/custom/path.yaml")

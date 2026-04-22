@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiohttp
 
 from .alerter import send_alert
-from .fetcher import get_metagraph_hotkeys
+from .fetcher import get_metagraph_hotkeys, get_wallet_hotkey_ss58
 from .models import (
     AlertEvent,
     AlertLevel,
+    DeregisterEntry,
     DeregisterEvent,
     GlobalConfig,
     SubnetConfig,
@@ -31,13 +33,42 @@ class DeregisterMonitor:
         subnets: list[SubnetConfig],
     ):
         self.global_cfg = global_cfg
-        self.subnets = [s for s in subnets if s.enabled and s.deregister_entries]
+        self.subnets = self._prepare_subnets(subnets)
         self._stop_event = asyncio.Event()
         self._session: aiohttp.ClientSession | None = None
         # Track which hotkeys were known to be registered
         # {netuid: {hotkey_ss58: was_registered}}
         self._registered: dict[int, dict[str, bool]] = {}
         self._first_check: dict[int, bool] = {}
+        self.last_status: dict[int, dict[str, bool]] = {}
+        self.last_checked_at: dict[int, datetime] = {}
+        self.last_error: dict[int, str] = {}
+
+    def _prepare_subnets(self, subnets: list[SubnetConfig]) -> list[SubnetConfig]:
+        """Attach Jarvis wallet deregister tracking to auto-register subnets."""
+        tracked = [s for s in subnets if s.enabled]
+        if not tracked:
+            return []
+
+        try:
+            wallet_hotkey = get_wallet_hotkey_ss58(self.global_cfg.wallet)
+        except Exception:
+            wallet_hotkey = None
+
+        prepared: list[SubnetConfig] = []
+        for subnet in tracked:
+            entries = list(subnet.deregister_entries)
+            if subnet.auto_register and wallet_hotkey and not entries:
+                entries.append(
+                    DeregisterEntry(
+                        hotkey_ss58=wallet_hotkey,
+                        label=f"{self.global_cfg.wallet.name}/{self.global_cfg.wallet.hotkey}",
+                    )
+                )
+            if entries:
+                subnet.deregister_entries = entries
+                prepared.append(subnet)
+        return prepared
 
     @property
     def has_entries(self) -> bool:
@@ -76,6 +107,7 @@ class DeregisterMonitor:
                 try:
                     await self._check_subnet(subnet)
                 except Exception:
+                    self.last_error[subnet.netuid] = "deregister_check_failed"
                     logger.exception(f"[{subnet.label}] Deregister check failed")
 
             try:
@@ -99,10 +131,12 @@ class DeregisterMonitor:
             self.global_cfg.subtensor_endpoint,
         )
         hotkeys_set = set(hotkeys_on_chain)
+        self.last_status[subnet.netuid] = {}
 
         for entry in subnet.deregister_entries:
             is_registered = entry.hotkey_ss58 in hotkeys_set
             was_registered = self._registered[subnet.netuid].get(entry.hotkey_ss58, True)
+            self.last_status[subnet.netuid][entry.hotkey_ss58] = is_registered
 
             if self._first_check[subnet.netuid]:
                 # On first check, just record the state
@@ -137,6 +171,8 @@ class DeregisterMonitor:
             self._registered[subnet.netuid][entry.hotkey_ss58] = is_registered
 
         self._first_check[subnet.netuid] = False
+        self.last_checked_at[subnet.netuid] = datetime.now(timezone.utc)
+        self.last_error.pop(subnet.netuid, None)
 
     async def _send_deregister_alert(self, subnet: SubnetConfig, event: DeregisterEvent) -> None:
         """Send a deregistration alert."""
