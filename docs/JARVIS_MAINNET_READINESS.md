@@ -1,5 +1,7 @@
 # Jarvis Mainnet Readiness Package
 
+For a short non-technical summary, read [docs/JARVIS_SN13_EXECUTIVE_READINESS.md](/home/abiorh/flow/jarvis-orchestrator/docs/JARVIS_SN13_EXECUTIVE_READINESS.md).
+
 ## Purpose
 
 This document answers one question directly:

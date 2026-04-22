@@ -26,6 +26,8 @@ Jarvis administrators should use `jarvis-miner`. `python -m cli` is only a packa
 
 For the deployment package, see [docs/JARVIS_MAINNET_READINESS.md](/home/abiorh/flow/jarvis-orchestrator/docs/JARVIS_MAINNET_READINESS.md) and [compose.yaml](/home/abiorh/flow/jarvis-orchestrator/compose.yaml).
 
+For the current runnable local SN13 operator flow, read [docs/RUN_SN13_LOCALLY.md](/home/abiorh/flow/jarvis-orchestrator/docs/RUN_SN13_LOCALLY.md).
+
 ## Root Options
 
 ```bash

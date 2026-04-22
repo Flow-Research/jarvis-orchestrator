@@ -104,11 +104,14 @@ Store policy:
 
 The shared workstream HTTP API exposes:
 
+- `GET /`
 - `GET /health`
 - `GET /v1/tasks`
 - `GET /v1/tasks/{task_id}`
 - `POST /v1/submissions`
 - `GET /v1/operators/{operator_id}/stats`
+
+`GET /` is a read-only human dashboard for runtime inspection. It does not replace the signed operator API.
 
 There is no SN13-specific public API route. SN13-specific logic is selected by the task `subnet` and enforced by the SN13 adapter.
 
@@ -199,6 +202,7 @@ jarvis-miner workstream tasks --status open --json-output
 This keeps the control surface simple:
 
 - `workstream serve` runs the HTTP boundary
+- `/` shows the human-readable runtime dashboard
 - `workstream status` reports configuration and counts
 - `workstream tasks` shows what is actually published
 

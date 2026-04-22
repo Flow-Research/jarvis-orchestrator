@@ -43,6 +43,8 @@ jarvis-orchestrator/
 
 ## Quick Start
 
+For the current runnable local operator flow, read [docs/RUN_SN13_LOCALLY.md](/home/abiorh/flow/jarvis-orchestrator/docs/RUN_SN13_LOCALLY.md) first.
+
 ```bash
 # Install
 uv pip install --python .venv/bin/python -e .
@@ -99,6 +101,22 @@ Mainnet deployment package:
 - Compose stack: [compose.yaml](/home/abiorh/flow/jarvis-orchestrator/compose.yaml)
 - deployment env: [deploy/jarvis.mainnet.env](/home/abiorh/flow/jarvis-orchestrator/deploy/jarvis.mainnet.env)
 - monitor config: [deploy/monitor.mainnet.yaml](/home/abiorh/flow/jarvis-orchestrator/deploy/monitor.mainnet.yaml)
+
+## What Is Runnable Now
+
+Runnable now:
+
+- task publication into durable SQLite workstream
+- workstream HTTP API for personal operators
+- read-only human runtime dashboard at `/`
+- SN13 intake and quality gate into canonical SQLite
+- operator stats and audit facts
+
+Not end-to-end complete yet:
+
+- live validator traffic verification on the SN13 listener
+- upstream parquet export/upload
+- Jarvis archive upload
 
 ## Documentation
 
