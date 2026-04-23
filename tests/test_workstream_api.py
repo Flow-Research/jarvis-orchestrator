@@ -138,6 +138,39 @@ def test_workstream_dashboard_renders_human_runtime_view():
     assert "task_1" in response.text
     assert "#bittensor" in response.text
     assert "Auth" in response.text
+    assert "/dashboard/tasks" in response.text
+    assert "Load more tasks" in response.text
+    assert "Live view refreshes every 10 seconds" in response.text
+
+
+def test_workstream_dashboard_tasks_endpoint_paginates_runtime_cards():
+    client, workstream, _stats = _client()
+    for index in range(3):
+        workstream.publish(
+            WorkstreamTask(
+                task_id=f"task_{index}",
+                route_key="sn13",
+                source="X",
+                contract={
+                    "task_id": f"task_{index}",
+                    "source": "X",
+                    "label": f"#topic{index}",
+                },
+            )
+        )
+
+    response = client.get("/dashboard/tasks?offset=1&limit=1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["offset"] == 1
+    assert payload["limit"] == 1
+    assert payload["loaded_count"] == 2
+    assert payload["next_offset"] == 2
+    assert payload["has_more"] is True
+    assert payload["summary"]["total_tasks"] == 3
+    assert "task_1" in payload["task_html"]
+    assert "task_0" not in payload["task_html"]
 
 
 def test_workstream_api_accepts_submission_request_without_internal_route():
