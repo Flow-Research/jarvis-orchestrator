@@ -123,7 +123,6 @@ Add `x-jarvis-operator` separately from your configured `JARVIS_OPERATOR_ID`.
 For every task, inspect:
 
 - `task.task_id`: work item identifier to submit against
-- `task.subnet`: routing namespace required by the API; copy it exactly from the task into submissions and do not interpret it as an operator concern
 - `task.source`: source or work category
 - `task.acceptance_cap`: maximum accepted records for the task
 - `task.accepted_count`: accepted progress already recorded
@@ -143,7 +142,6 @@ Do not work on expired tasks, full tasks, unsupported sources, or tasks that can
 {
   "task_id": "<copy task.task_id>",
   "operator_id": "<your operator id>",
-  "subnet": "<copy task.subnet>",
   "records": [
     {
       "uri": "https://source.example/item/1",
@@ -161,7 +159,6 @@ Required envelope fields:
 
 - `task_id`
 - `operator_id`: must equal the signed `x-jarvis-operator` identity
-- `subnet`: copy exactly from the task response
 - `records`
 
 Required record fields:
@@ -222,5 +219,3 @@ Common rejection reasons include `acceptance:label_mismatch`, `acceptance:keywor
 ## Operator Stats
 
 Stats are quality counters, not guaranteed final payment. Treat `estimated_reward_units` as an accounting signal only.
-
-For endpoint details, read `references/api-contract.md`.

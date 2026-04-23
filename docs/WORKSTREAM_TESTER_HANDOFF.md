@@ -60,7 +60,7 @@ docker compose -f docker-compose.local.yaml up -d workstream-api registration-mo
 
 This is the company tester stack:
 
-- `workstream-api` serves the dashboard and signed operator API.
+- `workstream-api` serves the dashboard and signed Workstream API.
 - `registration-monitor` keeps registration cost visibility active without auto-registering.
 - `sn13-scheduler` refreshes real Gravity/DD and publishes supported X/Reddit workstream tasks.
 - `sn13-listener` stays off unless the team is testing live validator traffic.
@@ -69,7 +69,7 @@ The human dashboard remains at:
 
 - `/`
 
-The signed operator API remains at:
+The signed Workstream API remains at:
 
 - `/v1/tasks`
 - `/v1/tasks/{task_id}`

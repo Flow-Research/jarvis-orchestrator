@@ -1,4 +1,4 @@
-"""Generic workstream models shared by the API and subnet adapters."""
+"""Generic workstream models shared by the API and internal adapters."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def require_aware_utc(value: datetime) -> datetime:
 
 
 class WorkstreamTaskStatus(str, Enum):
-    """Generic task state independent of any subnet implementation."""
+    """Generic task state independent of any adapter implementation."""
 
     OPEN = "open"
     COMPLETED = "completed"
@@ -38,7 +38,7 @@ class WorkstreamTaskStatus(str, Enum):
 
 
 class WorkstreamTask(BaseModel):
-    """Task visible to personal operators."""
+    """Internal durable task with routing metadata."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -85,6 +85,42 @@ class WorkstreamTask(BaseModel):
         return self
 
 
+class OperatorTaskView(BaseModel):
+    """Operator-facing task view that hides internal routing details."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str = Field(..., min_length=1, max_length=160)
+    source: str = Field(..., min_length=1, max_length=64)
+    contract: dict[str, Any] = Field(..., min_length=1)
+    status: WorkstreamTaskStatus = WorkstreamTaskStatus.OPEN
+    created_at: datetime = Field(default_factory=utc_now)
+    expires_at: datetime | None = None
+    acceptance_cap: int = Field(default=1, ge=1)
+    accepted_count: int = Field(default=0, ge=0)
+
+    @classmethod
+    def from_task(cls, task: WorkstreamTask) -> OperatorTaskView:
+        """Return the public view for an internal task."""
+        public_contract = dict(task.contract)
+        public_contract.pop("submission_schema", None)
+        return cls(
+            task_id=task.task_id,
+            source=task.source,
+            contract=public_contract,
+            status=task.status,
+            created_at=task.created_at,
+            expires_at=task.expires_at,
+            acceptance_cap=task.acceptance_cap,
+            accepted_count=task.accepted_count,
+        )
+
+    @field_validator("created_at", "expires_at")
+    @classmethod
+    def validate_datetime(cls, value: datetime | None) -> datetime | None:
+        return ensure_utc(value) if value is not None else None
+
+
 class WorkstreamSubmissionRecord(BaseModel):
     """One source record submitted to the workstream API."""
 
@@ -124,7 +160,7 @@ class WorkstreamSubmissionRecord(BaseModel):
 
 
 class OperatorSubmissionEnvelope(BaseModel):
-    """Generic operator upload envelope before subnet-specific validation."""
+    """Internal upload envelope after API routing resolution."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -139,6 +175,34 @@ class OperatorSubmissionEnvelope(BaseModel):
     @classmethod
     def validate_submitted_at(cls, value: datetime) -> datetime:
         return require_aware_utc(value)
+
+
+class OperatorSubmissionRequest(BaseModel):
+    """Public operator upload request."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    submission_id: str = Field(default_factory=lambda: f"opsub_{uuid4().hex}")
+    task_id: str = Field(..., min_length=1)
+    operator_id: str = Field(..., min_length=1, max_length=128)
+    records: list[WorkstreamSubmissionRecord] = Field(..., min_length=1)
+    submitted_at: datetime = Field(default_factory=utc_now)
+
+    @field_validator("submitted_at")
+    @classmethod
+    def validate_submitted_at(cls, value: datetime) -> datetime:
+        return require_aware_utc(value)
+
+    def to_internal_envelope(self, *, subnet: str) -> OperatorSubmissionEnvelope:
+        """Attach internal routing before handing the upload to intake."""
+        return OperatorSubmissionEnvelope(
+            submission_id=self.submission_id,
+            task_id=self.task_id,
+            operator_id=self.operator_id,
+            subnet=subnet,
+            records=self.records,
+            submitted_at=self.submitted_at,
+        )
 
 
 class OperatorSubmissionReceipt(BaseModel):

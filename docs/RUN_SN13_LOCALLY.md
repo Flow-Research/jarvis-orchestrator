@@ -53,7 +53,7 @@ This is the default local deployment mode for internal testers.
 
 It runs:
 
-- `workstream-api`: dashboard and signed operator API
+- `workstream-api`: dashboard and signed Workstream API
 - `registration-monitor`: burn-cost and registration visibility, with auto-register disabled
 - `sn13-scheduler`: real Gravity/DD refresh and task publication loop
 
@@ -64,7 +64,7 @@ It does not run:
 The local operator flow is:
 
 ```text
-real Gravity/DD -> scheduler -> durable workstream -> operator API -> SN13 intake -> canonical SQLite
+real Gravity/DD -> scheduler -> durable workstream -> Workstream API -> SN13 intake -> canonical SQLite
 ```
 
 ### 1. Generate Tester Credentials

@@ -2,17 +2,17 @@
 
 ## Purpose
 
-Jarvis uses one operator workstream across all subnets.
+Jarvis uses one operator workstream across all task sources and adapter types.
 
-Personal operators do not integrate separately with SN13, SN6, or future subnet packages. Operators integrate with the Jarvis workstream HTTP API. Jarvis routes each task and upload to the correct subnet adapter based on the task contract.
+Personal operators do not integrate separately with SN13, ERC-8183, internal campaigns, or future task packages. Operators integrate with the Jarvis workstream HTTP API. Jarvis keeps the internal task route in durable storage and sends each upload to the correct adapter after resolving `task_id`.
 
 ## Core Rule
 
 ```text
 One workstream HTTP API.
 One workstream interface.
-Many subnet adapters.
-Subnet-specific contracts travel inside generic workstream tasks.
+Many internal adapters.
+Task-specific requirements travel inside generic workstream task contracts.
 ```
 
 ## Boundary Model
@@ -20,24 +20,24 @@ Subnet-specific contracts travel inside generic workstream tasks.
 | Layer | Owns | Must Not Own |
 | --- | --- | --- |
 | `workstream/` | generic task publication, cap tracking, completion, submission envelopes, operator stats models | SN13 policy, source-specific validation, validator protocol |
-| `workstream/api/` | HTTP transport implementation for the workstream boundary | subnet business rules |
-| `subnets/<subnet>/workstream.py` | converting subnet tasks into generic workstream tasks | HTTP routing, shared operator auth, generic submission flow |
-| `subnets/<subnet>/intake.py` | validating subnet-specific records | generic task discovery |
-| `subnets/<subnet>/tasks.py` | subnet task contract shape | FastAPI implementation |
+| `workstream/api/` | HTTP transport implementation, public task views, auth, submission request parsing, internal route resolution by `task_id` | adapter business rules or public leakage of internal routes |
+| adapter publication module | converting adapter-specific demand into generic workstream tasks | HTTP routing, shared operator auth, generic submission flow |
+| adapter intake module | validating adapter-specific records or results | generic task discovery |
+| adapter task module | adapter task contract shape | FastAPI implementation |
 
 ## Operator Flow
 
 ```text
-Jarvis subnet planner
+Jarvis planner or demand source
         |
         v
-Subnet adapter creates subnet-specific task contract
+Internal adapter creates task-specific contract
         |
         v
-Generic workstream publishes task with subnet + contract
+Generic workstream persists task with internal route + public contract
         |
         v
-Workstream API exposes tasks to personal operators
+Workstream API exposes public task view to personal operators
         |
         v
 Operators inspect open task
@@ -46,27 +46,28 @@ Operators inspect open task
 Operator uploads candidate records to shared submission endpoint
         |
         v
-Router sends upload to subnet-specific intake adapter
+Workstream API resolves task_id to the internal adapter route
         |
         v
-Subnet quality gate accepts, rejects, or marks duplicates
+Adapter quality gate accepts, rejects, or marks duplicates
         |
         v
 Operator stats update from accepted/rejected facts
 ```
 
-## Why This Scales Across Subnets
+## Why This Scales Across Work Types
 
-Different subnets will ask for different work:
+Different adapters will ask for different work:
 
 - SN13 asks for source-native data records.
+- ERC-8183 work may ask for chain, token, metadata, or protocol-specific evidence.
+- Internal campaigns may ask for research, enrichment, verification, or file outputs.
 - A forecasting subnet may ask for forecasts plus evidence.
 - A coding or research subnet may ask for files, traces, citations, or result bundles.
 
 The API remains the same because task shape is generic:
 
 - `task_id`
-- `subnet`
 - `source` or category
 - `contract`
 - acceptance cap
@@ -74,7 +75,7 @@ The API remains the same because task shape is generic:
 - expiry
 - operator stats
 
-The subnet-specific part lives inside `contract` and inside the subnet intake adapter.
+The operator-facing part lives inside `contract`. The adapter route remains internal to Jarvis.
 
 ## Current Implementation
 
@@ -98,7 +99,7 @@ Store policy:
 - `InMemoryWorkstream` is for tests and throwaway local development only.
 - `SQLiteWorkstream` is the durable single-node workstream store for Jarvis-controlled deployments.
 - `InMemoryOperatorStats` is test-only; the default SN13 runtime reads operator stats from canonical SN13 SQLite through `SN13OperatorStatsAdapter`.
-- A distributed deployment can replace `SQLiteWorkstream` with Postgres or another durable queue without changing the workstream HTTP boundary or subnet adapters.
+- A distributed deployment can replace `SQLiteWorkstream` with Postgres or another durable queue without changing the workstream HTTP boundary or internal adapters.
 
 ## HTTP Surface
 
@@ -111,19 +112,18 @@ The shared workstream HTTP API exposes:
 - `POST /v1/submissions`
 - `GET /v1/operators/{operator_id}/stats`
 
-`GET /` is a read-only human dashboard for runtime inspection. It does not replace the signed operator API.
+`GET /` is a read-only human dashboard for runtime inspection. It does not replace the signed Workstream API.
 
-There is no SN13-specific public API route. SN13-specific logic is selected by the task `subnet` and enforced by the SN13 adapter.
+There is no SN13-specific public API route and no public route field in operator task or submission payloads. Adapter selection is internal: Jarvis resolves `task_id` to the durable task route, then calls the matching intake adapter.
 
 ## Submission Model
 
-`POST /v1/submissions` accepts a strict envelope. Extra fields are rejected at the API edge instead of being silently forwarded into SN13 intake.
+`POST /v1/submissions` accepts a strict public request. Extra fields are rejected at the API edge instead of being silently forwarded into intake.
 
 Required envelope fields:
 
 - `task_id`
 - `operator_id`
-- `subnet`
 - `records`
 
 Required record fields:
@@ -140,7 +140,7 @@ Optional record fields:
 - `scraped_at`
 - `provenance`
 
-Source-native payload belongs inside `records[*].content`. Top-level arbitrary record fields are not accepted. SN13 then applies the task contract, source-specific required fields, delivery limits, acceptance window, duplicate checks, and quality gate before any data reaches canonical SQLite.
+Source-native payload belongs inside `records[*].content`. Top-level arbitrary record fields are not accepted. Jarvis then attaches the internal route from the durable task record and the selected adapter applies the task contract, source-specific required fields, delivery limits, acceptance window, duplicate checks, and quality gate before any data reaches canonical storage.
 
 ## HTTP Auth
 

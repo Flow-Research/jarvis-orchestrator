@@ -1,10 +1,12 @@
-"""Subnet-agnostic workstream contracts for Jarvis operator tasks."""
+"""Workstream contracts for Jarvis operator tasks."""
 
 from .api import create_workstream_app
 from .models import (
     OperatorStats,
     OperatorSubmissionEnvelope,
     OperatorSubmissionReceipt,
+    OperatorSubmissionRequest,
+    OperatorTaskView,
     WorkstreamSubmissionRecord,
     WorkstreamTask,
     WorkstreamTaskStatus,
@@ -19,7 +21,9 @@ __all__ = [
     "OperatorStats",
     "OperatorStatsPort",
     "OperatorSubmissionEnvelope",
+    "OperatorSubmissionRequest",
     "OperatorSubmissionReceipt",
+    "OperatorTaskView",
     "WorkstreamSubmissionRecord",
     "SQLiteWorkstream",
     "create_workstream_app",

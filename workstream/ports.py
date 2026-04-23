@@ -37,7 +37,7 @@ class WorkstreamPort(Protocol):
 
 
 class OperatorIntakePort(Protocol):
-    """Upload boundary enforced by subnet-specific intake adapters."""
+    """Upload boundary enforced by internal intake adapters."""
 
     def submit(self, envelope: OperatorSubmissionEnvelope) -> OperatorSubmissionReceipt:
         """Validate and process an operator upload."""

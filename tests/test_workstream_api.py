@@ -19,7 +19,11 @@ from workstream.store import InMemoryWorkstream
 
 
 class FakeIntake:
+    def __init__(self):
+        self.submitted: list[OperatorSubmissionEnvelope] = []
+
     def submit(self, envelope: OperatorSubmissionEnvelope) -> OperatorSubmissionReceipt:
+        self.submitted.append(envelope)
         return OperatorSubmissionReceipt(
             submission_id=envelope.submission_id,
             task_id=envelope.task_id,
@@ -35,6 +39,19 @@ def _client() -> tuple[TestClient, InMemoryWorkstream, InMemoryOperatorStats]:
     stats = InMemoryOperatorStats()
     app = create_workstream_app(workstream=workstream, intake=FakeIntake(), stats=stats)
     return TestClient(app), workstream, stats
+
+
+def _client_with_intake() -> tuple[
+    TestClient,
+    InMemoryWorkstream,
+    InMemoryOperatorStats,
+    FakeIntake,
+]:
+    workstream = InMemoryWorkstream()
+    stats = InMemoryOperatorStats()
+    intake = FakeIntake()
+    app = create_workstream_app(workstream=workstream, intake=intake, stats=stats)
+    return TestClient(app), workstream, stats, intake
 
 
 def _signed_headers(
@@ -73,10 +90,33 @@ def test_workstream_api_lists_open_tasks():
         )
     )
 
-    listed = client.get("/v1/tasks", params={"subnet": "sn13"})
+    listed = client.get("/v1/tasks")
 
     assert listed.status_code == 200
     assert listed.json()[0]["task_id"] == "task_1"
+    assert "subnet" not in listed.json()[0]
+
+
+def test_workstream_api_get_task_hides_internal_route():
+    client, workstream, _stats = _client()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            subnet="sn13",
+            source="X",
+            contract={
+                "task_id": "task_1",
+                "source": "X",
+                "submission_schema": "internal.adapter.Schema",
+            },
+        )
+    )
+
+    response = client.get("/v1/tasks/task_1")
+
+    assert response.status_code == 200
+    assert "subnet" not in response.json()
+    assert "submission_schema" not in response.json()["contract"]
 
 
 def test_workstream_dashboard_renders_human_runtime_view():
@@ -100,7 +140,44 @@ def test_workstream_dashboard_renders_human_runtime_view():
     assert "Auth" in response.text
 
 
-def test_workstream_api_accepts_submission_envelope():
+def test_workstream_api_accepts_submission_request_without_internal_route():
+    client, workstream, _stats, intake = _client_with_intake()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            subnet="sn13",
+            source="X",
+            contract={"task_id": "task_1", "source": "X"},
+        )
+    )
+
+    response = client.post(
+        "/v1/submissions",
+        json={
+            "task_id": "task_1",
+            "operator_id": "operator_1",
+            "records": [
+                {
+                    "uri": "https://x.com/example/status/1",
+                    "source_created_at": "2026-04-22T10:02:00+00:00",
+                    "content": {
+                        "tweet_id": "1",
+                        "username": "alice",
+                        "text": "Bittensor subnet data",
+                        "url": "https://x.com/example/status/1",
+                        "timestamp": "2026-04-22T10:02:00+00:00",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["accepted_count"] == 1
+    assert intake.submitted[0].subnet == "sn13"
+
+
+def test_workstream_api_rejects_public_submission_with_internal_route_field():
     client, workstream, _stats = _client()
     workstream.publish(
         WorkstreamTask(
@@ -121,20 +198,13 @@ def test_workstream_api_accepts_submission_envelope():
                 {
                     "uri": "https://x.com/example/status/1",
                     "source_created_at": "2026-04-22T10:02:00+00:00",
-                    "content": {
-                        "tweet_id": "1",
-                        "username": "alice",
-                        "text": "Bittensor subnet data",
-                        "url": "https://x.com/example/status/1",
-                        "timestamp": "2026-04-22T10:02:00+00:00",
-                    },
+                    "content": {"text": "valid shape"},
                 }
             ],
         },
     )
 
-    assert response.status_code == 200
-    assert response.json()["accepted_count"] == 1
+    assert response.status_code == 422
 
 
 def test_workstream_api_rejects_unmodeled_submission_fields():
@@ -153,7 +223,6 @@ def test_workstream_api_rejects_unmodeled_submission_fields():
         json={
             "task_id": "task_1",
             "operator_id": "operator_1",
-            "subnet": "sn13",
             "records": [
                 {
                     "uri": "https://x.com/example/status/1",
@@ -184,7 +253,6 @@ def test_workstream_api_rejects_naive_source_created_at():
         json={
             "task_id": "task_1",
             "operator_id": "operator_1",
-            "subnet": "sn13",
             "records": [
                 {
                     "uri": "https://x.com/example/status/1",
@@ -282,7 +350,6 @@ def test_workstream_api_rejects_signed_operator_mismatch():
         {
             "task_id": "task_1",
             "operator_id": "operator_2",
-            "subnet": "sn13",
             "records": [
                 {
                     "uri": "https://x.com/example/status/1",

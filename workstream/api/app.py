@@ -10,8 +10,9 @@ from fastapi.responses import HTMLResponse
 
 from workstream.models import (
     OperatorStats,
-    OperatorSubmissionEnvelope,
     OperatorSubmissionReceipt,
+    OperatorSubmissionRequest,
+    OperatorTaskView,
     WorkstreamTask,
 )
 from workstream.ports import OperatorIntakePort, OperatorStatsPort, WorkstreamPort
@@ -99,7 +100,6 @@ def _render_dashboard_html(
                     f"<h3>{escape(target)}</h3>",
                     "<div class='task-meta'>",
                     f"<span><strong>ID</strong> <code>{escape(task.task_id)}</code></span>",
-                    f"<span><strong>Subnet</strong> {escape(task.subnet)}</span>",
                     f"<span><strong>Created</strong> {escape(task.created_at.isoformat())}</span>",
                     "</div>",
                     "<div class='progress-head'>",
@@ -627,7 +627,7 @@ def create_workstream_app(
     stats: OperatorStatsPort,
     authenticator: OperatorAuthenticator | None = None,
 ) -> FastAPI:
-    """Create the workstream API without coupling it to a subnet implementation."""
+    """Create the workstream API without coupling it to an adapter implementation."""
     app = FastAPI(
         title="Jarvis Workstream API",
         version="1.0.0",
@@ -670,33 +670,45 @@ def create_workstream_app(
             )
         )
 
-    @app.get("/v1/tasks", response_model=list[WorkstreamTask])
+    @app.get("/v1/tasks", response_model=list[OperatorTaskView])
     def list_tasks(
-        subnet: str | None = Query(default=None, min_length=1),
         source: str | None = Query(default=None, min_length=1),
         _identity: OperatorIdentity | None = Depends(authenticate),
-    ) -> list[WorkstreamTask]:
-        return workstream.list_available(
-            subnet=subnet,
-            source=source,
-        )
+    ) -> list[OperatorTaskView]:
+        return [
+            OperatorTaskView.from_task(task)
+            for task in workstream.list_available(source=source)
+        ]
 
-    @app.get("/v1/tasks/{task_id}", response_model=WorkstreamTask)
+    @app.get("/v1/tasks/{task_id}", response_model=OperatorTaskView)
     def get_task(
         task_id: str,
         _identity: OperatorIdentity | None = Depends(authenticate),
-    ) -> WorkstreamTask:
+    ) -> OperatorTaskView:
         task = workstream.get(task_id)
         if task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
-        return task
+        return OperatorTaskView.from_task(task)
 
     @app.post("/v1/submissions", response_model=OperatorSubmissionReceipt)
     def submit_records(
-        envelope: OperatorSubmissionEnvelope,
+        request: OperatorSubmissionRequest,
         identity: OperatorIdentity | None = Depends(authenticate),
     ) -> OperatorSubmissionReceipt:
-        enforce_operator(identity, envelope.operator_id)
+        enforce_operator(identity, request.operator_id)
+        task = workstream.get(request.task_id)
+        if task is None:
+            return OperatorSubmissionReceipt(
+                submission_id=request.submission_id,
+                task_id=request.task_id,
+                operator_id=request.operator_id,
+                accepted_count=0,
+                rejected_count=len(request.records),
+                duplicate_count=0,
+                status="rejected",
+                reasons=["task_not_found"],
+            )
+        envelope = request.to_internal_envelope(subnet=task.subnet)
         return intake.submit(envelope)
 
     @app.get("/v1/operators/{operator_id}/stats", response_model=OperatorStats)
