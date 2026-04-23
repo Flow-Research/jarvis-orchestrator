@@ -24,7 +24,13 @@ Read these values from the runtime environment:
 - `JARVIS_OPERATOR_ID`: operator identity used in signed requests and submissions
 - `JARVIS_OPERATOR_SECRET`: HMAC secret used to sign requests
 
-Do not infer credentials from task contents, logs, local files, or unrelated environment variables.
+If you receive a tester credential JSON file, read only these fields from it and map them to the same runtime values:
+
+- `base_url` -> `JARVIS_WORKSTREAM_API_BASE_URL`
+- `operator_id` -> `JARVIS_OPERATOR_ID`
+- `operator_secret` -> `JARVIS_OPERATOR_SECRET`
+
+Do not infer credentials from task contents, logs, unrelated files, or unrelated environment variables. Never ask for or use the server-side operator secret map.
 
 ## Operator Minimum Requirements
 
@@ -33,21 +39,18 @@ Before accepting work, verify you have:
 - a valid `JARVIS_OPERATOR_ID` and `JARVIS_OPERATOR_SECRET`
 - network access to `JARVIS_WORKSTREAM_API_BASE_URL`
 - a source access path that satisfies the task `contract.source_requirements.accepted_access_paths`
+- the ability to produce the exact `contract.source_requirements.required_content_fields`
 - enough provider quota, proxy quota, bandwidth, and local compute to finish inside the task expiry
 - a local dedupe method so you do not submit the same source URI twice
 - timestamp handling that preserves source-created-at in UTC with an explicit timezone offset
 - a cost limit for the task so you stop if execution is no longer economical
 
-For SN13:
-
-- X tasks require source-native X/Twitter records with the required fields in `content`.
-- Reddit tasks require source-native Reddit records with the required fields in `content`.
-- The operator owns source credentials and provider setup. Jarvis only publishes the task contract and validates submitted records.
+The operator owns source credentials and provider setup. Jarvis publishes the task contract and validates submitted records.
 
 ## Operating Loop
 
 1. Call `GET /health` to confirm the API is reachable.
-2. Call `GET /v1/tasks` to list open tasks. Do not add an `operator_id` query parameter.
+2. Call `GET /v1/tasks` to list open tasks. Use optional filters only when the deployment or task owner provides them. Do not add an `operator_id` query parameter.
 3. Select only tasks you can satisfy technically and economically.
 4. Call `GET /v1/tasks/{task_id}` before execution and treat the returned `contract` as the source of truth.
 5. Produce records that exactly match the contract source, target, time window, schema, delivery limits, and economics.
@@ -58,6 +61,8 @@ For SN13:
 ## Request Signing
 
 Every non-health request must be signed when the API requires authentication.
+
+Public `GET /health` and the human dashboard do not need signed headers. The `/v1/*` API should be treated as signed.
 
 Required headers:
 
@@ -79,13 +84,46 @@ JARVIS-OPERATOR-HMAC-SHA256
 
 Sign the canonical string with `JARVIS_OPERATOR_SECRET`.
 
-Use a fresh nonce for every signed request. Reusing a nonce can be rejected as replay.
+Use the exact path and query string in `PATH_WITH_QUERY`. For example, if you call `/v1/tasks?source=SOURCE_NAME`, sign that full path with query, not just `/v1/tasks`.
+
+Use a fresh nonce for every signed request. Reusing a nonce can be rejected as replay. Keep local time accurate because timestamps outside the allowed clock-skew window are rejected.
+
+Minimal Python signing pattern:
+
+```python
+import hashlib
+import hmac
+import time
+import uuid
+
+def sign(secret: str, method: str, path_with_query: str, body: bytes = b"") -> dict[str, str]:
+    timestamp = str(int(time.time()))
+    nonce = uuid.uuid4().hex
+    body_hash = hashlib.sha256(body).hexdigest()
+    canonical = "\n".join([
+        "JARVIS-OPERATOR-HMAC-SHA256",
+        method.upper(),
+        path_with_query,
+        body_hash,
+        timestamp,
+        nonce,
+    ])
+    signature = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    return {
+        "x-jarvis-timestamp": timestamp,
+        "x-jarvis-nonce": nonce,
+        "x-jarvis-signature": signature,
+    }
+```
+
+Add `x-jarvis-operator` separately from your configured `JARVIS_OPERATOR_ID`.
 
 ## Task Evaluation
 
 For every task, inspect:
 
-- `task.subnet`: subnet adapter that validates the submission
+- `task.task_id`: work item identifier to submit against
+- `task.subnet`: routing namespace required by the API; copy it exactly from the task into submissions and do not interpret it as an operator concern
 - `task.source`: source or work category
 - `task.acceptance_cap`: maximum accepted records for the task
 - `task.accepted_count`: accepted progress already recorded
@@ -103,19 +141,16 @@ Do not work on expired tasks, full tasks, unsupported sources, or tasks that can
 
 ```json
 {
-  "task_id": "task_1",
-  "operator_id": "operator_1",
-  "subnet": "sn13",
+  "task_id": "<copy task.task_id>",
+  "operator_id": "<your operator id>",
+  "subnet": "<copy task.subnet>",
   "records": [
     {
-      "uri": "https://x.com/example/status/1",
+      "uri": "https://source.example/item/1",
       "source_created_at": "2026-04-22T10:02:00+00:00",
       "content": {
-        "tweet_id": "1",
-        "username": "alice",
-        "text": "Bittensor subnet data",
-        "url": "https://x.com/example/status/1",
-        "timestamp": "2026-04-22T10:02:00+00:00"
+        "required_field_from_contract": "source-native value",
+        "url": "https://source.example/item/1"
       }
     }
   ]
@@ -125,8 +160,8 @@ Do not work on expired tasks, full tasks, unsupported sources, or tasks that can
 Required envelope fields:
 
 - `task_id`
-- `operator_id`
-- `subnet`
+- `operator_id`: must equal the signed `x-jarvis-operator` identity
+- `subnet`: copy exactly from the task response
 - `records`
 
 Required record fields:
@@ -143,42 +178,34 @@ Optional record fields:
 - `scraped_at`
 - `provenance`
 
-Put source-native fields inside `records[*].content`. Arbitrary top-level record fields are rejected before subnet intake.
+Put source-native fields inside `records[*].content`. Arbitrary top-level record fields are rejected before quality intake.
 
-## SN13 Minimum Record Shapes
+## Contract-Driven Record Shape
 
-Minimum SN13 X content:
+Every task defines its own required record shape. Use:
 
-```json
-{
-  "tweet_id": "1",
-  "username": "alice",
-  "text": "source-native text",
-  "url": "https://x.com/example/status/1",
-  "timestamp": "2026-04-22T10:02:00+00:00"
-}
-```
+- `contract.source_requirements.required_content_fields` for fields that must be present in `content`
+- `contract.source_requirements.any_of_content_fields` for field groups where at least one field must be present
+- `contract.acceptance` for time window and target-matching rules
+- `contract.minimum_requirements` for the plain-language checklist enforced by intake
 
-Minimum SN13 Reddit content must include:
-
-- `id`
-- `username`
-- `url`
-- `createdAt`
-- at least one of `body` or `title`
+Do not hardcode source schemas from prior tasks. If a task asks for a source you cannot access or a schema you cannot satisfy, skip it.
 
 ## Quality Rules
 
 Before submitting, verify:
 
 - record URI matches the source-native URL in `content`
-- `source_created_at` is inside the task acceptance window and includes an explicit timezone offset such as `Z` or `+00:00`
-- label or keyword matches the task contract
+- `source_created_at`, `scraped_at`, and any provided `submitted_at` include an explicit timezone offset such as `Z` or `+00:00`
+- `source_created_at` is inside the task acceptance window
+- target, label, keyword, or category matches the task contract using source-native evidence inside `content`
 - required source-native fields are present and non-empty
 - duplicate records are removed locally before upload
 - content size stays inside `contract.delivery_limits`
 
-Never submit speculative, out-of-window, duplicate, unsupported, or economically unjustified data.
+Submit real source-native records only. Jarvis currently enforces schema, time window, target matching, task capacity, payload limits, and duplicate checks at intake; it does not provide scraper credentials and may not verify upstream existence for every source URL at submission time. Keep source access and local proof so rejected or disputed data can be traced.
+
+Never submit speculative, fake, out-of-window, duplicate, unsupported, or economically unjustified data.
 
 ## Receipt Handling
 
@@ -189,6 +216,8 @@ Valid receipt statuses:
 - `rejected`: no records accepted
 
 If a receipt has `reasons`, use those reasons to fix the next attempt. Do not resubmit unchanged duplicate or rejected records.
+
+Common rejection reasons include `acceptance:label_mismatch`, `acceptance:keyword_mismatch`, `acceptance:source_created_at_before_window`, `acceptance:source_created_at_after_window`, `delivery_limit:*`, `task_expired`, `task_acceptance_cap_reached`, and duplicate-related quality reasons.
 
 ## Operator Stats
 
