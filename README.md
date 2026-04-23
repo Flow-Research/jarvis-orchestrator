@@ -43,10 +43,12 @@ jarvis-orchestrator/
 
 ## Quick Start
 
+For the current runnable local operator flow, read `docs/RUN_SN13_LOCALLY.md` first.
+
 ```bash
 # Install
 uv pip install --python .venv/bin/python -e .
-ln -sf /home/abiorh/flow/jarvis-orchestrator/.venv/bin/jarvis-miner ~/.local/bin/jarvis-miner
+ln -sf "$(pwd)/.venv/bin/jarvis-miner" ~/.local/bin/jarvis-miner
 
 # CLI help
 jarvis-miner --help
@@ -94,11 +96,27 @@ Machine-readable admin commands accept both `--json-output` and the shorter `--j
 
 Mainnet deployment package:
 
-- deployment and cost brief: [docs/JARVIS_MAINNET_READINESS.md](/home/abiorh/flow/jarvis-orchestrator/docs/JARVIS_MAINNET_READINESS.md)
-- Docker image: [Dockerfile](/home/abiorh/flow/jarvis-orchestrator/Dockerfile)
-- Compose stack: [compose.yaml](/home/abiorh/flow/jarvis-orchestrator/compose.yaml)
-- deployment env: [deploy/jarvis.mainnet.env](/home/abiorh/flow/jarvis-orchestrator/deploy/jarvis.mainnet.env)
-- monitor config: [deploy/monitor.mainnet.yaml](/home/abiorh/flow/jarvis-orchestrator/deploy/monitor.mainnet.yaml)
+- deployment and cost brief: `docs/JARVIS_MAINNET_READINESS.md`
+- Docker image: `Dockerfile`
+- Compose stack: `docker-compose.yaml`
+- deployment env: `deploy/jarvis.mainnet.env`
+- monitor config: `deploy/monitor.mainnet.yaml`
+
+## What Is Runnable Now
+
+Runnable now:
+
+- task publication into durable SQLite workstream
+- workstream HTTP API for personal operators
+- read-only human runtime dashboard at `/`
+- SN13 intake and quality gate into canonical SQLite
+- operator stats and audit facts
+
+Not end-to-end complete yet:
+
+- live validator traffic verification on the SN13 listener
+- upstream parquet export/upload
+- Jarvis archive upload
 
 ## Documentation
 

@@ -79,6 +79,27 @@ def test_workstream_api_lists_open_tasks():
     assert listed.json()[0]["task_id"] == "task_1"
 
 
+def test_workstream_dashboard_renders_human_runtime_view():
+    client, workstream, _stats = _client()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            subnet="sn13",
+            source="X",
+            contract={"task_id": "task_1", "source": "X", "label": "#bittensor"},
+        )
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Workstream Runtime" in response.text
+    assert "task_1" in response.text
+    assert "#bittensor" in response.text
+    assert "Auth" in response.text
+
+
 def test_workstream_api_accepts_submission_envelope():
     client, workstream, _stats = _client()
     workstream.publish(
@@ -147,6 +168,43 @@ def test_workstream_api_rejects_unmodeled_submission_fields():
     assert response.status_code == 422
 
 
+def test_workstream_api_rejects_naive_source_created_at():
+    client, workstream, _stats = _client()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            subnet="sn13",
+            source="X",
+            contract={"task_id": "task_1", "source": "X"},
+        )
+    )
+
+    response = client.post(
+        "/v1/submissions",
+        json={
+            "task_id": "task_1",
+            "operator_id": "operator_1",
+            "subnet": "sn13",
+            "records": [
+                {
+                    "uri": "https://x.com/example/status/1",
+                    "source_created_at": "2026-04-22T10:02:00",
+                    "content": {
+                        "tweet_id": "1",
+                        "username": "alice",
+                        "text": "Bittensor subnet data",
+                        "url": "https://x.com/example/status/1",
+                        "timestamp": "2026-04-22T10:02:00+00:00",
+                    },
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "timezone offset" in response.text
+
+
 def test_workstream_api_returns_operator_stats():
     client, _workstream, stats = _client()
     stats.set_operator_stats(
@@ -189,6 +247,24 @@ def test_workstream_api_requires_valid_signature_when_authenticator_is_configure
 
     assert unsigned.status_code == 401
     assert signed.status_code == 200
+
+
+def test_workstream_dashboard_shows_auth_required_when_authenticator_is_configured():
+    workstream = InMemoryWorkstream()
+    stats = InMemoryOperatorStats()
+    authenticator = HMACOperatorAuthenticator(secrets={"operator_1": "secret"})
+    app = create_workstream_app(
+        workstream=workstream,
+        intake=FakeIntake(),
+        stats=stats,
+        authenticator=authenticator.authenticate,
+    )
+    client = TestClient(app)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "required" in response.text
 
 
 def test_workstream_api_rejects_signed_operator_mismatch():
@@ -280,6 +356,20 @@ def test_workstream_api_settings_parse_host_port_and_operator_map():
     assert settings.configured_operator_count == 2
     assert settings.configured_operator_ids == ["operator_1", "operator_2"]
     assert settings.max_clock_skew_seconds == 120
+
+
+def test_workstream_api_settings_parse_operator_map_from_file(tmp_path):
+    secrets_path = tmp_path / "operators.json"
+    secrets_path.write_text('{"operator_01":"secret1","operator_02":"secret2"}\n')
+
+    settings = load_workstream_api_settings(
+        {
+            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE": str(secrets_path),
+        }
+    )
+
+    assert settings.configured_operator_count == 2
+    assert settings.configured_operator_ids == ["operator_01", "operator_02"]
 
 
 def test_runtime_configuration_reports_operator_ids_and_host_port():

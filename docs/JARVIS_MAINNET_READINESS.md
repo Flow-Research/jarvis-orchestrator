@@ -1,5 +1,7 @@
 # Jarvis Mainnet Readiness Package
 
+For a short non-technical summary, read `docs/JARVIS_SN13_EXECUTIVE_READINESS.md`.
+
 ## Purpose
 
 This document answers one question directly:
@@ -242,7 +244,7 @@ Macrocosm documentation explicitly describes Apify and Reddit setup paths for Da
 The repo now includes:
 
 - `Dockerfile`
-- `compose.yaml`
+- `docker-compose.yaml`
 - `deploy/jarvis.mainnet.env`
 - `deploy/monitor.mainnet.yaml`
 - `scripts/run_sn13_listener.sh`

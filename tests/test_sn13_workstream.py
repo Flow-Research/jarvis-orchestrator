@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from subnets.sn13.desirability import DesirabilitySnapshot
 from subnets.sn13.models import MinerIndex
@@ -10,7 +10,7 @@ from workstream.store import InMemoryWorkstream
 
 
 def test_sn13_task_publishes_as_generic_workstream_contract(tmp_path):
-    now = datetime(2026, 4, 22, 12, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=1)
     snapshot = DesirabilitySnapshot.from_upstream_records(
         [
             {
@@ -37,7 +37,7 @@ def test_sn13_task_publishes_as_generic_workstream_contract(tmp_path):
 
 
 def test_sn13_tasks_publish_to_workstream(tmp_path):
-    now = datetime(2026, 4, 22, 12, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=1)
     snapshot = DesirabilitySnapshot.from_upstream_records(
         [
             {

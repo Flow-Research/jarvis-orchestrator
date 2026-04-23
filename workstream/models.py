@@ -22,6 +22,13 @@ def ensure_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def require_aware_utc(value: datetime) -> datetime:
+    """Reject naive datetimes on external request boundaries."""
+    if value.tzinfo is None:
+        raise ValueError("datetime must include an explicit timezone offset")
+    return value.astimezone(timezone.utc)
+
+
 class WorkstreamTaskStatus(str, Enum):
     """Generic task state independent of any subnet implementation."""
 
@@ -95,7 +102,7 @@ class WorkstreamSubmissionRecord(BaseModel):
     @field_validator("source_created_at", "scraped_at")
     @classmethod
     def validate_datetime(cls, value: datetime | None) -> datetime | None:
-        return ensure_utc(value) if value is not None else None
+        return require_aware_utc(value) if value is not None else None
 
     @field_validator("uri")
     @classmethod
@@ -131,7 +138,7 @@ class OperatorSubmissionEnvelope(BaseModel):
     @field_validator("submitted_at")
     @classmethod
     def validate_submitted_at(cls, value: datetime) -> datetime:
-        return ensure_utc(value)
+        return require_aware_utc(value)
 
 
 class OperatorSubmissionReceipt(BaseModel):

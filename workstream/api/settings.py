@@ -18,22 +18,42 @@ class WorkstreamAPISettings(BaseModel):
     sn13_db_path: Path = Path("subnets/sn13/data/sn13.sqlite3")
     require_auth: bool = True
     operator_secrets_json: str | None = None
+    operator_secrets_file: Path | None = None
     max_clock_skew_seconds: int = Field(default=300, ge=30, le=3600)
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> WorkstreamAPISettings:
         values = env or os.environ
+
+        operator_secrets_file_raw = values.get("JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE")
+        operator_secrets_file = (
+            Path(operator_secrets_file_raw) if operator_secrets_file_raw else None
+        )
+        operator_secrets_json = values.get("JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON")
+        if operator_secrets_file is not None:
+            try:
+                operator_secrets_json = operator_secrets_file.read_text()
+            except OSError as exc:
+                raise ValueError(
+                    "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE could not be read: "
+                    f"{operator_secrets_file}"
+                ) from exc
+        if not operator_secrets_json:
+            op_id = values.get("JARVIS_OPERATOR_ID")
+            op_secret = values.get("JARVIS_OPERATOR_SECRET")
+            if op_id and op_secret:
+                operator_secrets_json = json.dumps({op_id: op_secret})
+
         return cls(
             host=values.get("JARVIS_WORKSTREAM_HOST", "127.0.0.1"),
             port=int(values.get("JARVIS_WORKSTREAM_PORT", "8787")),
             workstream_db_path=Path(
                 values.get("JARVIS_WORKSTREAM_DB_PATH", "data/workstream.sqlite3")
             ),
-            sn13_db_path=Path(
-                values.get("JARVIS_SN13_DB_PATH", "subnets/sn13/data/sn13.sqlite3")
-            ),
+            sn13_db_path=Path(values.get("JARVIS_SN13_DB_PATH", "subnets/sn13/data/sn13.sqlite3")),
             require_auth=(values.get("JARVIS_WORKSTREAM_REQUIRE_AUTH", "1") != "0"),
-            operator_secrets_json=values.get("JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON"),
+            operator_secrets_json=operator_secrets_json,
+            operator_secrets_file=operator_secrets_file,
             max_clock_skew_seconds=int(
                 values.get("JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS", "300")
             ),

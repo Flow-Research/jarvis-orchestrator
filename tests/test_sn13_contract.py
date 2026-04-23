@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
+from pydantic import ValidationError
+
 from subnets.sn13.intake import OperatorSubmission, SubmissionProvenance
 from subnets.sn13.models import DataSource, time_bucket_from_datetime
 from subnets.sn13.storage import SQLiteStorage
@@ -34,6 +37,30 @@ def test_operator_submission_converts_to_canonical_data_entity():
     assert entity.uri == "https://x.com/example/status/12345"
     assert entity.time_bucket == time_bucket_from_datetime(submission.source_created_at)
     assert entity.content_size_bytes == len(entity.content)
+
+
+def test_operator_submission_rejects_naive_datetimes():
+    with pytest.raises(ValidationError, match="timezone offset"):
+        OperatorSubmission(
+            operator_id="operator_7",
+            source=DataSource.X,
+            label="$BTC",
+            uri="https://twitter.com/example/status/12345",
+            source_created_at=datetime(2026, 4, 21, 12, 10),
+            scraped_at=datetime(2026, 4, 21, 12, 12),
+            content={
+                "tweet_id": "12345",
+                "username": "example",
+                "text": "hello world",
+                "url": "https://twitter.com/example/status/12345",
+                "timestamp": "2026-04-21T12:10:00Z",
+            },
+            provenance=SubmissionProvenance(
+                scraper_id="x.custom.v1",
+                query_type="label_search",
+                query_value="$BTC",
+            ),
+        )
 
 
 def test_sqlite_storage_builds_index_and_query_from_canonical_entities(tmp_path):

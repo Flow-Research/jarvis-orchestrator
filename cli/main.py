@@ -2026,15 +2026,27 @@ def workstream_group():
 @click.option("--reload", is_flag=True, help="Enable uvicorn reload for local development.")
 def workstream_serve(host: str | None, port: int | None, reload: bool):
     """Serve the workstream HTTP boundary using durable local SQLite stores."""
+    import os
+
     import uvicorn
 
-    from workstream.api.runtime import create_default_app, runtime_configuration
+    from workstream.api.runtime import create_default_app
+    from workstream.api.settings import load_workstream_api_settings
 
-    config = runtime_configuration()
-    if config["config_error"]:
-        raise click.ClickException(str(config["config_error"]))
-    resolved_host = host or str(config["host"])
-    resolved_port = int(config["port"]) if port is None else port
+    env_values = dict(os.environ)
+    if host is not None:
+        env_values["JARVIS_WORKSTREAM_HOST"] = host
+    if port is not None:
+        env_values["JARVIS_WORKSTREAM_PORT"] = str(port)
+
+    # Validate auth and storage configuration before uvicorn binds a socket.
+    try:
+        settings = load_workstream_api_settings(env_values)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    resolved_host = settings.host
+    resolved_port = settings.port
 
     console.print(
         Panel.fit(
@@ -2060,7 +2072,7 @@ def workstream_serve(host: str | None, port: int | None, reload: bool):
         )
         return
 
-    app = create_default_app()
+    app = create_default_app(env_values)
     uvicorn.run(app, host=resolved_host, port=resolved_port, reload=False)
 
 

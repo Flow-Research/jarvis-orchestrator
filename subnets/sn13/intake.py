@@ -22,6 +22,13 @@ from .models import (
 OperatorId = str
 
 
+def require_aware_utc(value: datetime) -> datetime:
+    """Reject naive datetimes at the operator submission boundary."""
+    if value.tzinfo is None:
+        raise ValueError("datetime must include an explicit timezone offset")
+    return ensure_utc(value)
+
+
 class SubmissionProvenance(BaseModel):
     """Internal audit metadata for a submission."""
 
@@ -63,7 +70,7 @@ class OperatorSubmission(BaseModel):
     @field_validator("source_created_at", "scraped_at")
     @classmethod
     def validate_datetimes(cls, value: datetime) -> datetime:
-        return ensure_utc(value)
+        return require_aware_utc(value)
 
     @field_validator("operator_id")
     @classmethod

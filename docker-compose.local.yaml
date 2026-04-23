@@ -1,0 +1,114 @@
+services:
+  registration-monitor:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    working_dir: ${PWD}
+    entrypoint:
+      - ${PWD}/.venv/bin/jarvis-miner
+    command:
+      - -c
+      - ${PWD}/deploy/monitor.mainnet.yaml
+      - monitor
+      - watch
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_MONITOR_DATA_DIR: ${PWD}/data
+      JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
+      JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
+      JARVIS_SN13_GRAVITY_CACHE_DIR: ${PWD}/subnets/sn13/cache/gravity
+      JARVIS_SN13_LISTENER_CAPTURE_DIR: ${PWD}/subnets/sn13/listener/captures
+      PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - ${PWD}:${PWD}
+      - ${HOME}/.local/share/uv/python:${HOME}/.local/share/uv/python:ro
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+
+  workstream-api:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    working_dir: ${PWD}
+    entrypoint:
+      - ${PWD}/.venv/bin/jarvis-miner
+    command:
+      - workstream
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
+      JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
+      PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    ports:
+      - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
+    volumes:
+      - ${PWD}:${PWD}
+      - ${HOME}/.local/share/uv/python:${HOME}/.local/share/uv/python:ro
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "${PWD}/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  sn13-scheduler:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    working_dir: ${PWD}
+    entrypoint:
+      - /bin/sh
+      - ${PWD}/scripts/run_sn13_scheduler.sh
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_MONITOR_DATA_DIR: ${PWD}/data
+      JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
+      JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
+      JARVIS_SN13_GRAVITY_CACHE_DIR: ${PWD}/subnets/sn13/cache/gravity
+      JARVIS_SN13_LISTENER_CAPTURE_DIR: ${PWD}/subnets/sn13/listener/captures
+      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
+      PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - ${PWD}:${PWD}
+      - ${HOME}/.local/share/uv/python:${HOME}/.local/share/uv/python:ro
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro
+    depends_on:
+      workstream-api:
+        condition: service_healthy
+
+  jarvis-admin:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    working_dir: ${PWD}
+    entrypoint:
+      - ${PWD}/.venv/bin/jarvis-miner
+    command:
+      - config
+      - show
+    env_file:
+      - ./deploy/jarvis.mainnet.env
+    environment:
+      ARROW_USER_SIMD_LEVEL: NONE
+      JARVIS_MONITOR_DATA_DIR: ${PWD}/data
+      JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
+      JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
+      JARVIS_SN13_GRAVITY_CACHE_DIR: ${PWD}/subnets/sn13/cache/gravity
+      JARVIS_SN13_LISTENER_CAPTURE_DIR: ${PWD}/subnets/sn13/listener/captures
+      PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    profiles:
+      - admin
+    volumes:
+      - ${PWD}:${PWD}
+      - ${HOME}/.local/share/uv/python:${HOME}/.local/share/uv/python:ro
+      - ${JARVIS_WALLET_HOST_PATH:-./runtime/wallets}:/wallets:ro

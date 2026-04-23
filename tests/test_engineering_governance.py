@@ -1,4 +1,9 @@
+import os
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -111,7 +116,7 @@ def test_mainnet_readiness_doc_covers_costs_deployment_and_operator_split():
         "personal operator requirements",
         "why jarvis maintains its own archive s3",
         "dockerfile",
-        "compose.yaml",
+        "docker-compose.yaml",
         "registration-monitor",
         "workstream-api",
         "sn13-scheduler",
@@ -122,12 +127,12 @@ def test_mainnet_readiness_doc_covers_costs_deployment_and_operator_split():
 
 def test_mainnet_deployment_files_exist_and_match_current_services():
     assert (ROOT / "Dockerfile").exists()
-    assert (ROOT / "compose.yaml").exists()
+    assert (ROOT / "docker-compose.yaml").exists()
     assert (ROOT / "deploy" / "jarvis.mainnet.env").exists()
     assert (ROOT / "deploy" / "monitor.mainnet.yaml").exists()
     assert (ROOT / "scripts" / "run_sn13_scheduler.sh").exists()
 
-    compose_text = (ROOT / "compose.yaml").read_text().casefold()
+    compose_text = (ROOT / "docker-compose.yaml").read_text().casefold()
     for required in [
         "registration-monitor",
         "workstream-api",
@@ -135,3 +140,41 @@ def test_mainnet_deployment_files_exist_and_match_current_services():
         "jarvis-admin",
     ]:
         assert required in compose_text
+
+
+def test_local_compose_file_is_portable_and_covers_current_services():
+    compose_text = (ROOT / "docker-compose.local.yaml").read_text()
+
+    assert "${PWD}" in compose_text
+    assert "${HOME}/.local/share/uv/python" in compose_text
+    assert "/home/abiorh/flow/jarvis-orchestrator" not in compose_text
+
+    lowered = compose_text.casefold()
+    for required in [
+        "registration-monitor",
+        "workstream-api",
+        "sn13-scheduler",
+        "jarvis-admin",
+    ]:
+        assert required in lowered
+
+
+def test_local_compose_config_renders():
+    if shutil.which("docker") is None:
+        pytest.skip("docker is required for compose config validation")
+
+    env = dict(os.environ)
+    env.setdefault("PWD", str(ROOT))
+    env.setdefault("HOME", str(Path.home()))
+
+    result = subprocess.run(
+        ["docker", "compose", "-f", "docker-compose.local.yaml", "config"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "workstream-api" in result.stdout.casefold()

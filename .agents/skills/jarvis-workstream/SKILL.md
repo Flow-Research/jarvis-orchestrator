@@ -35,7 +35,7 @@ Before accepting work, verify you have:
 - a source access path that satisfies the task `contract.source_requirements.accepted_access_paths`
 - enough provider quota, proxy quota, bandwidth, and local compute to finish inside the task expiry
 - a local dedupe method so you do not submit the same source URI twice
-- timestamp handling that preserves source-created-at in UTC with an explicit timezone offset
+- timestamp handling that preserves source-created-at in UTC
 - a cost limit for the task so you stop if execution is no longer economical
 
 For SN13:
@@ -172,7 +172,7 @@ Minimum SN13 Reddit content must include:
 Before submitting, verify:
 
 - record URI matches the source-native URL in `content`
-- `source_created_at` is inside the task acceptance window and includes an explicit timezone offset such as `Z` or `+00:00`
+- `source_created_at` is inside the task acceptance window
 - label or keyword matches the task contract
 - required source-native fields are present and non-empty
 - duplicate records are removed locally before upload
