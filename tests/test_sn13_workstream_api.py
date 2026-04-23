@@ -11,7 +11,7 @@ def _open_task() -> WorkstreamTask:
     start = datetime(2026, 4, 22, 10, tzinfo=timezone.utc)
     return WorkstreamTask(
         task_id="task_1",
-        subnet="sn13",
+        route_key="sn13",
         source="X",
         status=WorkstreamTaskStatus.OPEN,
         acceptance_cap=2,
@@ -40,7 +40,7 @@ def _open_reddit_task() -> WorkstreamTask:
     start = datetime(2026, 4, 22, 10, tzinfo=timezone.utc)
     return WorkstreamTask(
         task_id="task_reddit_1",
-        subnet="sn13",
+        route_key="sn13",
         source="REDDIT",
         status=WorkstreamTaskStatus.OPEN,
         acceptance_cap=2,
@@ -69,7 +69,7 @@ def _envelope(*, uri: str = "https://x.com/example/status/1") -> OperatorSubmiss
     return OperatorSubmissionEnvelope(
         task_id="task_1",
         operator_id="operator_1",
-        subnet="sn13",
+        route_key="sn13",
         submitted_at=datetime(2026, 4, 22, 10, 5, tzinfo=timezone.utc),
         records=[
             {
@@ -96,7 +96,7 @@ def _reddit_envelope(
     return OperatorSubmissionEnvelope(
         task_id=task_id,
         operator_id="operator_1",
-        subnet="sn13",
+        route_key="sn13",
         submitted_at=datetime(2026, 4, 22, 10, 5, tzinfo=timezone.utc),
         records=[
             {
@@ -194,7 +194,7 @@ def test_sn13_workstream_api_adapter_rejects_x_records_that_miss_task_label(tmp_
         OperatorSubmissionEnvelope(
             task_id="task_1",
             operator_id="operator_1",
-            subnet="sn13",
+            route_key="sn13",
             submitted_at=datetime(2026, 4, 22, 10, 5, tzinfo=timezone.utc),
             records=[
                 {

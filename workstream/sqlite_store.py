@@ -17,7 +17,7 @@ class SQLiteWorkstream:
 
     TASK_COLUMNS = (
         "task_id",
-        "subnet",
+        "route_key",
         "source",
         "status",
         "created_at",
@@ -29,7 +29,7 @@ class SQLiteWorkstream:
     TASK_TABLE = """
     CREATE TABLE IF NOT EXISTS workstream_tasks (
         task_id TEXT PRIMARY KEY,
-        subnet TEXT NOT NULL,
+        route_key TEXT NOT NULL,
         source TEXT NOT NULL,
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -41,7 +41,7 @@ class SQLiteWorkstream:
 
     TASK_LOOKUP_INDEX = """
     CREATE INDEX IF NOT EXISTS idx_workstream_tasks_lookup
-    ON workstream_tasks (status, subnet, source, created_at, task_id)
+    ON workstream_tasks (status, route_key, source, created_at, task_id)
     """
 
     def __init__(self, db_path: Path):
@@ -83,16 +83,18 @@ class SQLiteWorkstream:
         if columns == self.TASK_COLUMNS:
             return
 
-        # Migrate earlier reservation-based schemas to the current cap-based task table
-        # without losing the JSON payload that already contains canonical task state.
+        # Migrate earlier schemas without losing the JSON payload that already
+        # contains canonical task state. Older workstream tables used `subnet`
+        # for what is now the generic internal adapter route.
+        route_column = "route_key" if "route_key" in columns else "subnet"
         connection.execute("DROP INDEX IF EXISTS idx_workstream_tasks_lookup")
         connection.execute("ALTER TABLE workstream_tasks RENAME TO workstream_tasks_legacy")
         connection.execute(self.TASK_TABLE)
         connection.execute(
-            """
+            f"""
             INSERT INTO workstream_tasks (
                 task_id,
-                subnet,
+                route_key,
                 source,
                 status,
                 created_at,
@@ -102,7 +104,7 @@ class SQLiteWorkstream:
             )
             SELECT
                 task_id,
-                subnet,
+                {route_column},
                 source,
                 status,
                 created_at,
@@ -131,14 +133,14 @@ class SQLiteWorkstream:
     def list_available(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
         where_parts: list[str] = []
         params: list[object] = []
-        if subnet is not None:
-            where_parts.append("subnet = ?")
-            params.append(subnet)
+        if route_key is not None:
+            where_parts.append("route_key = ?")
+            params.append(route_key)
         if source is not None:
             where_parts.append("source = ?")
             params.append(source)
@@ -161,7 +163,7 @@ class SQLiteWorkstream:
         self,
         *,
         status: WorkstreamTaskStatus | None = None,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
         limit: int | None = None,
     ) -> list[WorkstreamTask]:
@@ -170,9 +172,9 @@ class SQLiteWorkstream:
         if status is not None:
             where_parts.append("status = ?")
             params.append(status.value)
-        if subnet is not None:
-            where_parts.append("subnet = ?")
-            params.append(subnet)
+        if route_key is not None:
+            where_parts.append("route_key = ?")
+            params.append(route_key)
         if source is not None:
             where_parts.append("source = ?")
             params.append(source)
@@ -200,14 +202,14 @@ class SQLiteWorkstream:
     def summary(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> dict[str, int]:
         where_parts: list[str] = []
         params: list[object] = []
-        if subnet is not None:
-            where_parts.append("subnet = ?")
-            params.append(subnet)
+        if route_key is not None:
+            where_parts.append("route_key = ?")
+            params.append(route_key)
         if source is not None:
             where_parts.append("source = ?")
             params.append(source)
@@ -231,7 +233,7 @@ class SQLiteWorkstream:
             counts[row["status"]] = task_count
             total_tasks += task_count
 
-        available_now = len(self.list_available(subnet=subnet, source=source))
+        available_now = len(self.list_available(route_key=route_key, source=source))
         return {
             "total_tasks": total_tasks,
             "open_tasks": counts[WorkstreamTaskStatus.OPEN.value],
@@ -291,7 +293,7 @@ class SQLiteWorkstream:
             """
             INSERT INTO workstream_tasks (
                 task_id,
-                subnet,
+                route_key,
                 source,
                 status,
                 created_at,
@@ -300,7 +302,7 @@ class SQLiteWorkstream:
                 updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(task_id) DO UPDATE SET
-                subnet = excluded.subnet,
+                route_key = excluded.route_key,
                 source = excluded.source,
                 status = excluded.status,
                 created_at = excluded.created_at,
@@ -310,7 +312,7 @@ class SQLiteWorkstream:
             """,
             (
                 task.task_id,
-                task.subnet,
+                task.route_key,
                 task.source,
                 task.status.value,
                 task.created_at.isoformat(),

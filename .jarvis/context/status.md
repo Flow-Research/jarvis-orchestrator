@@ -113,7 +113,7 @@
 - CLI economics estimates are exposed through `jarvis-miner sn13 economics estimate`.
 - Shared operator workstream architecture is now defined:
   - `docs/WORKSTREAM_ARCHITECTURE.md`
-  - `workstream/` for subnet-agnostic task, accepted-cap progress, upload, and stats ports
+  - `workstream/` for adapter-agnostic task, accepted-cap progress, upload, and stats ports
   - `workstream/api/` for the workstream HTTP transport
   - `subnets/sn13/workstream.py` for the SN13 task-contract adapter
 - Shared operator workstream implementation now includes:

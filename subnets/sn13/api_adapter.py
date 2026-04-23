@@ -1,4 +1,4 @@
-"""SN13 adapters for the subnet-agnostic workstream API."""
+"""SN13 adapters for the generic Workstream API."""
 
 from __future__ import annotations
 
@@ -129,12 +129,12 @@ class SN13OperatorIntakeAdapter:
         envelope: OperatorSubmissionEnvelope,
         task: WorkstreamTask | None,
     ) -> str | None:
-        if envelope.subnet != "sn13":
-            return "subnet_mismatch:expected_sn13"
+        if envelope.route_key != "sn13":
+            return "route_mismatch:expected_sn13"
         if task is None:
             return "task_not_found"
-        if task.subnet != "sn13":
-            return "task_subnet_mismatch:expected_sn13"
+        if task.route_key != "sn13":
+            return "task_route_mismatch:expected_sn13"
         if task.status == task.status.CANCELLED:
             return "task_cancelled"
         if task.status == task.status.COMPLETED or task.remaining_capacity <= 0:

@@ -12,7 +12,7 @@ from workstream.store import InMemoryWorkstream, TaskUnavailableError
 def _task(task_id: str = "task_1") -> WorkstreamTask:
     return WorkstreamTask(
         task_id=task_id,
-        subnet="sn13",
+        route_key="sn13",
         source="X",
         contract={
             "task_id": task_id,
@@ -29,7 +29,7 @@ def test_workstream_publishes_lists_and_tracks_accepted_progress():
     workstream = InMemoryWorkstream()
     workstream.publish(_task())
 
-    available = workstream.list_available(subnet="sn13", source="X")
+    available = workstream.list_available(route_key="sn13", source="X")
     updated = workstream.record_acceptance("task_1", accepted_count=1)
 
     assert available[0].task_id == "task_1"
@@ -67,7 +67,7 @@ def test_sqlite_workstream_persists_tasks_and_progress(tmp_path):
     assert persisted is not None
     assert persisted.status == WorkstreamTaskStatus.OPEN
     assert persisted.accepted_count == 1
-    assert [task.task_id for task in second.list_available(subnet="sn13")] == ["task_1"]
+    assert [task.task_id for task in second.list_available(route_key="sn13")] == ["task_1"]
 
 
 def test_sqlite_workstream_filters_available_tasks(tmp_path):
@@ -76,18 +76,18 @@ def test_sqlite_workstream_filters_available_tasks(tmp_path):
     workstream.publish(
         WorkstreamTask(
             task_id="task_2",
-            subnet="sn6",
+            route_key="forecasting",
             source="forecast",
             contract={"task_id": "task_2", "source": "forecast"},
             created_at=datetime(2026, 4, 22, 1, tzinfo=timezone.utc),
         )
     )
 
-    sn13_tasks = workstream.list_available(subnet="sn13")
-    sn6_tasks = workstream.list_available(subnet="sn6", source="forecast")
+    sn13_tasks = workstream.list_available(route_key="sn13")
+    forecasting_tasks = workstream.list_available(route_key="forecasting", source="forecast")
 
     assert [task.task_id for task in sn13_tasks] == ["task_1"]
-    assert [task.task_id for task in sn6_tasks] == ["task_2"]
+    assert [task.task_id for task in forecasting_tasks] == ["task_2"]
 
 
 def test_sqlite_workstream_summary_and_list_tasks(tmp_path):
@@ -96,8 +96,8 @@ def test_sqlite_workstream_summary_and_list_tasks(tmp_path):
     workstream.publish(_task("task_2"))
     workstream.record_acceptance("task_1", accepted_count=2)
 
-    listed = workstream.list_tasks(subnet="sn13", limit=10)
-    summary = workstream.summary(subnet="sn13")
+    listed = workstream.list_tasks(route_key="sn13", limit=10)
+    summary = workstream.summary(route_key="sn13")
 
     assert [task.task_id for task in listed] == ["task_1", "task_2"]
     assert summary["total_tasks"] == 2
@@ -164,12 +164,12 @@ def test_sqlite_workstream_migrates_legacy_lease_columns(tmp_path):
     with closing(sqlite3.connect(db_path)) as migrated:
         migrated.row_factory = sqlite3.Row
         table_info = migrated.execute("PRAGMA table_info(workstream_tasks)").fetchall()
-        schema_columns = [
-            row["name"]
-            for row in table_info
-        ]
+        schema_columns = [row["name"] for row in table_info]
 
     assert persisted is not None
     assert persisted.task_id == "task_legacy"
+    assert persisted.route_key == "sn13"
+    assert "route_key" in schema_columns
+    assert "subnet" not in schema_columns
     assert "leased_by" not in schema_columns
     assert "leased_until" not in schema_columns

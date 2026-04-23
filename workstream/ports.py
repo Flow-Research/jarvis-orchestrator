@@ -24,7 +24,7 @@ class WorkstreamPort(Protocol):
     def list_available(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
         """Return tasks that can currently accept valid submissions."""
@@ -37,7 +37,7 @@ class WorkstreamPort(Protocol):
 
 
 class OperatorIntakePort(Protocol):
-    """Upload boundary enforced by subnet-specific intake adapters."""
+    """Upload boundary enforced by internal intake adapters."""
 
     def submit(self, envelope: OperatorSubmissionEnvelope) -> OperatorSubmissionReceipt:
         """Validate and process an operator upload."""

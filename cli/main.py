@@ -2166,14 +2166,14 @@ def workstream_status(
     default="all",
     show_default=True,
 )
-@click.option("--subnet", type=str, default=None)
+@click.option("--route-key", type=str, default=None)
 @click.option("--source", type=str, default=None)
 @click.option("--limit", type=int, default=50, show_default=True)
 @click.option("--json-output", "--json", "json_output", is_flag=True)
 def workstream_tasks(
     workstream_db_path: Path | None,
     task_status: str,
-    subnet: str | None,
+    route_key: str | None,
     source: str | None,
     limit: int,
     json_output: bool,
@@ -2191,7 +2191,7 @@ def workstream_tasks(
             status_filter = WorkstreamTaskStatus(task_status)
         tasks = workstream.list_tasks(
             status=status_filter,
-            subnet=subnet,
+            route_key=route_key,
             source=source,
             limit=limit,
         )
@@ -2207,7 +2207,7 @@ def workstream_tasks(
 
     table = Table(title="Jarvis Workstream Tasks")
     table.add_column("Task", style="cyan")
-    table.add_column("Subnet", style="green")
+    table.add_column("Route", style="green")
     table.add_column("Source", style="green")
     table.add_column("Target", style="yellow")
     table.add_column("Status", style="magenta")
@@ -2216,7 +2216,7 @@ def workstream_tasks(
     for task in tasks:
         table.add_row(
             task.task_id,
-            task.subnet,
+            task.route_key,
             task.source,
             task.contract.get("label") or task.contract.get("keyword") or "-",
             task.status.value,

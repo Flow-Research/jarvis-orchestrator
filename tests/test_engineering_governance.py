@@ -81,15 +81,18 @@ def test_sn13_contract_uses_workstream_publish_and_intake_enforcement():
         assert required in text
 
 
-def test_workstream_architecture_is_subnet_agnostic():
+def test_workstream_architecture_is_adapter_agnostic():
     text = (ROOT / "docs" / "WORKSTREAM_ARCHITECTURE.md").read_text().casefold()
 
     for required in [
         "one workstream http api",
         "one workstream interface",
-        "many subnet adapters",
+        "many internal adapters",
+        "sn13, erc-8183, internal campaigns",
         "there is no sn13-specific public api route",
-        "subnet-specific contracts travel inside generic workstream tasks",
+        "task-specific requirements travel inside generic workstream task contracts",
+        "no public route field in operator task or submission payloads",
+        "jarvis resolves `task_id` to the durable task route",
         "sqliteworkstream",
         "sn13 plan publish",
     ]:

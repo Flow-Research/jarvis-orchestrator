@@ -10,8 +10,9 @@ from fastapi.responses import HTMLResponse
 
 from workstream.models import (
     OperatorStats,
-    OperatorSubmissionEnvelope,
     OperatorSubmissionReceipt,
+    OperatorSubmissionRequest,
+    OperatorTaskView,
     WorkstreamTask,
 )
 from workstream.ports import OperatorIntakePort, OperatorStatsPort, WorkstreamPort
@@ -38,11 +39,16 @@ def _task_target_label(task: WorkstreamTask) -> str:
     return "-"
 
 
-def _dashboard_tasks(workstream: WorkstreamPort, *, limit: int = 25) -> list[WorkstreamTask]:
+def _dashboard_tasks(
+    workstream: WorkstreamPort,
+    *,
+    limit: int = 25,
+    offset: int = 0,
+) -> list[WorkstreamTask]:
     list_tasks = getattr(workstream, "list_tasks", None)
     if callable(list_tasks):
-        return list_tasks(limit=limit)
-    return workstream.list_available()[:limit]
+        return list_tasks(limit=offset + limit)[offset : offset + limit]
+    return workstream.list_available()[offset : offset + limit]
 
 
 def _dashboard_summary(workstream: WorkstreamPort, tasks: list[WorkstreamTask]) -> dict[str, int]:
@@ -71,54 +77,57 @@ def _status_tone(status: str) -> str:
     }.get(status, "tone-neutral")
 
 
+def _render_dashboard_task_card(task: WorkstreamTask) -> str:
+    status = task.status.value
+    target = _task_target_label(task)
+    remaining = max(task.acceptance_cap - task.accepted_count, 0)
+    progress = 0
+    if task.acceptance_cap > 0:
+        progress = min(int((task.accepted_count / task.acceptance_cap) * 100), 100)
+    return "".join(
+        (
+            "<article class='task-card'>",
+            "<div class='task-topline'>",
+            f"<div class='task-source'>{escape(task.source)}</div>",
+            (
+                f"<div class='task-status {escape(_status_tone(status))}'>"
+                f"{escape(status)}</div>"
+            ),
+            "</div>",
+            f"<h3>{escape(target)}</h3>",
+            "<div class='task-meta'>",
+            f"<span><strong>ID</strong> <code>{escape(task.task_id)}</code></span>",
+            f"<span><strong>Created</strong> {escape(task.created_at.isoformat())}</span>",
+            "</div>",
+            "<div class='progress-head'>",
+            f"<span>{task.accepted_count}/{task.acceptance_cap} accepted</span>",
+            f"<span>{remaining} remaining</span>",
+            "</div>",
+            (
+                "<div class='progress-track'>"
+                f"<div class='progress-fill' style='width: {progress}%;'></div>"
+                "</div>"
+            ),
+            "</article>",
+        )
+    )
+
+
+def _render_dashboard_task_cards(tasks: list[WorkstreamTask]) -> str:
+    if not tasks:
+        return "<div class='empty'>No tasks published yet.</div>"
+    return "".join(_render_dashboard_task_card(task) for task in tasks)
+
+
 def _render_dashboard_html(
     *,
     summary: dict[str, int],
     tasks: list[WorkstreamTask],
     auth_enabled: bool,
 ) -> str:
-    rows = []
-    for task in tasks:
-        status = task.status.value
-        target = _task_target_label(task)
-        remaining = max(task.acceptance_cap - task.accepted_count, 0)
-        progress = 0
-        if task.acceptance_cap > 0:
-            progress = min(int((task.accepted_count / task.acceptance_cap) * 100), 100)
-        rows.append(
-            "".join(
-                (
-                    "<article class='task-card'>",
-                    "<div class='task-topline'>",
-                    f"<div class='task-source'>{escape(task.source)}</div>",
-                    (
-                        f"<div class='task-status {escape(_status_tone(status))}'>"
-                        f"{escape(status)}</div>"
-                    ),
-                    "</div>",
-                    f"<h3>{escape(target)}</h3>",
-                    "<div class='task-meta'>",
-                    f"<span><strong>ID</strong> <code>{escape(task.task_id)}</code></span>",
-                    f"<span><strong>Subnet</strong> {escape(task.subnet)}</span>",
-                    f"<span><strong>Created</strong> {escape(task.created_at.isoformat())}</span>",
-                    "</div>",
-                    "<div class='progress-head'>",
-                    f"<span>{task.accepted_count}/{task.acceptance_cap} accepted</span>",
-                    f"<span>{remaining} remaining</span>",
-                    "</div>",
-                    (
-                        "<div class='progress-track'>"
-                        f"<div class='progress-fill' style='width: {progress}%;'></div>"
-                        "</div>"
-                    ),
-                    "</article>",
-                )
-            )
-        )
-    if not rows:
-        rows.append("<div class='empty'>No tasks published yet.</div>")
-
     auth_state = "required" if auth_enabled else "disabled"
+    initial_count = len(tasks)
+    has_more = "true" if initial_count < summary["total_tasks"] else "false"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -281,6 +290,27 @@ def _render_dashboard_html(
       color: rgba(249, 244, 235, 0.76);
       line-height: 1.55;
       font-size: 14px;
+    }}
+    .live-pill {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      margin-top: 14px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(255, 251, 245, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: rgba(249, 244, 235, 0.84);
+      font-size: 13px;
+      font-weight: 700;
+    }}
+    .live-dot {{
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #70f1bf;
+      box-shadow: 0 0 0 6px rgba(112, 241, 191, 0.14);
     }}
     .surface {{
       display: grid;
@@ -459,6 +489,26 @@ def _render_dashboard_html(
       border: 1px dashed #d8cab2;
       border-radius: 18px;
     }}
+    .load-more {{
+      width: calc(100% - 40px);
+      margin: 0 20px 22px;
+      border: 0;
+      border-radius: 18px;
+      padding: 15px 18px;
+      background: linear-gradient(135deg, var(--bg-deep), var(--accent-3));
+      color: #fff8ef;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      box-shadow: 0 12px 24px rgba(20, 34, 47, 0.12);
+    }}
+    .load-more[hidden] {{
+      display: none;
+    }}
+    .load-more:disabled {{
+      opacity: 0.62;
+      cursor: wait;
+    }}
     .footer {{
       margin-top: 18px;
       color: var(--muted);
@@ -504,6 +554,10 @@ def _render_dashboard_html(
             Personal operators still use the signed HTTP API for task
             discovery and submission.
           </div>
+          <div class="live-pill">
+            <span class="live-dot"></span>
+            Live view refreshes every 10 seconds
+          </div>
         </div>
         <aside class="hero-rail">
           <section class="rail-card">
@@ -527,27 +581,27 @@ def _render_dashboard_html(
       <section class="summary">
         <article class="card">
           <div class="label">Total Tasks</div>
-          <div class="value">{summary["total_tasks"]}</div>
+          <div class="value" data-summary-key="total_tasks">{summary["total_tasks"]}</div>
           <div class="note">All durable workstream tasks</div>
         </article>
         <article class="card">
           <div class="label">Open Tasks</div>
-          <div class="value">{summary["open_tasks"]}</div>
+          <div class="value" data-summary-key="open_tasks">{summary["open_tasks"]}</div>
           <div class="note">Tasks still accepting valid submissions</div>
         </article>
         <article class="card">
           <div class="label">Available Now</div>
-          <div class="value">{summary["available_now"]}</div>
+          <div class="value" data-summary-key="available_now">{summary["available_now"]}</div>
           <div class="note">Open and not yet full or expired</div>
         </article>
         <article class="card">
           <div class="label">Completed</div>
-          <div class="value">{summary["completed_tasks"]}</div>
+          <div class="value" data-summary-key="completed_tasks">{summary["completed_tasks"]}</div>
           <div class="note">Tasks closed by cap or completion</div>
         </article>
         <article class="card">
           <div class="label">Cancelled</div>
-          <div class="value">{summary["cancelled_tasks"]}</div>
+          <div class="value" data-summary-key="cancelled_tasks">{summary["cancelled_tasks"]}</div>
           <div class="note">Tasks closed without completion</div>
         </article>
       </section>
@@ -562,9 +616,17 @@ def _render_dashboard_html(
             need to inspect while operators continue to use the signed API.
           </div>
         </div>
-        <div class="task-grid">
-          {''.join(rows)}
+        <div class="task-grid" data-task-grid>
+          {_render_dashboard_task_cards(tasks)}
         </div>
+        <button
+          class="load-more"
+          type="button"
+          data-load-more
+          {"hidden" if has_more == "false" else ""}
+        >
+          Load more tasks
+        </button>
       </section>
 
       <aside class="side-panel">
@@ -616,6 +678,75 @@ def _render_dashboard_html(
       </aside>
     </section>
   </main>
+  <script>
+    (() => {{
+      const state = {{
+        loaded: {initial_count},
+        pageSize: 25,
+        hasMore: {has_more},
+        loading: false,
+      }};
+      const grid = document.querySelector("[data-task-grid]");
+      const loadMoreButton = document.querySelector("[data-load-more]");
+
+      function updateSummary(summary) {{
+        for (const [key, value] of Object.entries(summary)) {{
+          const node = document.querySelector(`[data-summary-key="${{key}}"]`);
+          if (node) node.textContent = value;
+        }}
+      }}
+
+      function setLoadMoreState() {{
+        if (!loadMoreButton) return;
+        loadMoreButton.hidden = !state.hasMore;
+        loadMoreButton.disabled = state.loading;
+        loadMoreButton.textContent = state.loading ? "Loading..." : "Load more tasks";
+      }}
+
+      async function fetchTaskPage(offset, limit) {{
+        const response = await fetch(`/dashboard/tasks?offset=${{offset}}&limit=${{limit}}`, {{
+          headers: {{ "accept": "application/json" }},
+          cache: "no-store",
+        }});
+        if (!response.ok) throw new Error(`dashboard task fetch failed: ${{response.status}}`);
+        return response.json();
+      }}
+
+      async function refreshVisibleTasks() {{
+        if (!grid || state.loading || state.loaded < 1) return;
+        const payload = await fetchTaskPage(0, state.loaded);
+        grid.innerHTML = payload.task_html;
+        state.loaded = payload.loaded_count;
+        state.hasMore = payload.has_more;
+        updateSummary(payload.summary);
+        setLoadMoreState();
+      }}
+
+      async function loadMoreTasks() {{
+        if (!grid || state.loading || !state.hasMore) return;
+        state.loading = true;
+        setLoadMoreState();
+        try {{
+          const payload = await fetchTaskPage(state.loaded, state.pageSize);
+          grid.insertAdjacentHTML("beforeend", payload.task_html);
+          state.loaded = payload.next_offset;
+          state.hasMore = payload.has_more;
+          updateSummary(payload.summary);
+        }} finally {{
+          state.loading = false;
+          setLoadMoreState();
+        }}
+      }}
+
+      loadMoreButton?.addEventListener("click", loadMoreTasks);
+      window.addEventListener("scroll", () => {{
+        const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 900;
+        if (nearBottom) void loadMoreTasks();
+      }}, {{ passive: true }});
+      window.setInterval(() => void refreshVisibleTasks(), 10000);
+      setLoadMoreState();
+    }})();
+  </script>
 </body>
 </html>"""
 
@@ -627,7 +758,7 @@ def create_workstream_app(
     stats: OperatorStatsPort,
     authenticator: OperatorAuthenticator | None = None,
 ) -> FastAPI:
-    """Create the workstream API without coupling it to a subnet implementation."""
+    """Create the workstream API without coupling it to an adapter implementation."""
     app = FastAPI(
         title="Jarvis Workstream API",
         version="1.0.0",
@@ -670,33 +801,63 @@ def create_workstream_app(
             )
         )
 
-    @app.get("/v1/tasks", response_model=list[WorkstreamTask])
+    @app.get("/dashboard/tasks")
+    def dashboard_tasks(
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=25, ge=1, le=200),
+    ) -> dict[str, object]:
+        tasks = _dashboard_tasks(workstream, offset=offset, limit=limit)
+        summary = _dashboard_summary(workstream, tasks)
+        next_offset = offset + len(tasks)
+        return {
+            "offset": offset,
+            "limit": limit,
+            "loaded_count": next_offset,
+            "next_offset": next_offset,
+            "has_more": next_offset < summary["total_tasks"],
+            "summary": summary,
+            "task_html": _render_dashboard_task_cards(tasks),
+        }
+
+    @app.get("/v1/tasks", response_model=list[OperatorTaskView])
     def list_tasks(
-        subnet: str | None = Query(default=None, min_length=1),
         source: str | None = Query(default=None, min_length=1),
         _identity: OperatorIdentity | None = Depends(authenticate),
-    ) -> list[WorkstreamTask]:
-        return workstream.list_available(
-            subnet=subnet,
-            source=source,
-        )
+    ) -> list[OperatorTaskView]:
+        return [
+            OperatorTaskView.from_task(task)
+            for task in workstream.list_available(source=source)
+        ]
 
-    @app.get("/v1/tasks/{task_id}", response_model=WorkstreamTask)
+    @app.get("/v1/tasks/{task_id}", response_model=OperatorTaskView)
     def get_task(
         task_id: str,
         _identity: OperatorIdentity | None = Depends(authenticate),
-    ) -> WorkstreamTask:
+    ) -> OperatorTaskView:
         task = workstream.get(task_id)
         if task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
-        return task
+        return OperatorTaskView.from_task(task)
 
     @app.post("/v1/submissions", response_model=OperatorSubmissionReceipt)
     def submit_records(
-        envelope: OperatorSubmissionEnvelope,
+        request: OperatorSubmissionRequest,
         identity: OperatorIdentity | None = Depends(authenticate),
     ) -> OperatorSubmissionReceipt:
-        enforce_operator(identity, envelope.operator_id)
+        enforce_operator(identity, request.operator_id)
+        task = workstream.get(request.task_id)
+        if task is None:
+            return OperatorSubmissionReceipt(
+                submission_id=request.submission_id,
+                task_id=request.task_id,
+                operator_id=request.operator_id,
+                accepted_count=0,
+                rejected_count=len(request.records),
+                duplicate_count=0,
+                status="rejected",
+                reasons=["task_not_found"],
+            )
+        envelope = request.to_internal_envelope(route_key=task.route_key)
         return intake.submit(envelope)
 
     @app.get("/v1/operators/{operator_id}/stats", response_model=OperatorStats)

@@ -30,7 +30,7 @@ def test_sn13_task_publishes_as_generic_workstream_contract(tmp_path):
 
     workstream_task = workstream_task_from_sn13(task)
 
-    assert workstream_task.subnet == "sn13"
+    assert workstream_task.route_key == "sn13"
     assert workstream_task.source == "X"
     assert workstream_task.contract["task_id"] == task.task_id
     assert workstream_task.contract["delivery_limits"]["max_records"] == task.quantity_target
@@ -59,4 +59,4 @@ def test_sn13_tasks_publish_to_workstream(tmp_path):
     published = publish_sn13_tasks(tasks, workstream=workstream)
 
     assert published
-    assert workstream.list_available(subnet="sn13")
+    assert workstream.list_available(route_key="sn13")

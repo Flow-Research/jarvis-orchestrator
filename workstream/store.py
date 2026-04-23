@@ -35,15 +35,52 @@ class InMemoryWorkstream:
     def list_available(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
         tasks = [task for task in self._tasks.values() if task.is_available]
-        if subnet is not None:
-            tasks = [task for task in tasks if task.subnet == subnet]
+        if route_key is not None:
+            tasks = [task for task in tasks if task.route_key == route_key]
         if source is not None:
             tasks = [task for task in tasks if task.source == source]
         return sorted(tasks, key=lambda task: (task.created_at, task.task_id))
+
+    def list_tasks(
+        self,
+        *,
+        status: WorkstreamTaskStatus | None = None,
+        route_key: str | None = None,
+        source: str | None = None,
+        limit: int | None = None,
+    ) -> list[WorkstreamTask]:
+        tasks = list(self._tasks.values())
+        if status is not None:
+            tasks = [task for task in tasks if task.status == status]
+        if route_key is not None:
+            tasks = [task for task in tasks if task.route_key == route_key]
+        if source is not None:
+            tasks = [task for task in tasks if task.source == source]
+        ordered = sorted(tasks, key=lambda task: (task.created_at, task.task_id))
+        return ordered[:limit] if limit is not None else ordered
+
+    def summary(
+        self,
+        *,
+        route_key: str | None = None,
+        source: str | None = None,
+    ) -> dict[str, int]:
+        tasks = self.list_tasks(route_key=route_key, source=source)
+        return {
+            "total_tasks": len(tasks),
+            "open_tasks": sum(1 for task in tasks if task.status == WorkstreamTaskStatus.OPEN),
+            "completed_tasks": sum(
+                1 for task in tasks if task.status == WorkstreamTaskStatus.COMPLETED
+            ),
+            "cancelled_tasks": sum(
+                1 for task in tasks if task.status == WorkstreamTaskStatus.CANCELLED
+            ),
+            "available_now": len(self.list_available(route_key=route_key, source=source)),
+        }
 
     def record_acceptance(self, task_id: str, *, accepted_count: int) -> WorkstreamTask:
         task = self._tasks.get(task_id)

@@ -808,7 +808,7 @@ class TestSN13Commands:
 
         assert second.exit_code == 0
         workstream = SQLiteWorkstream(workstream_db_path)
-        available = workstream.list_available(subnet="sn13")
+        available = workstream.list_available(route_key="sn13")
         assert len(available) == 2
         assert all(task.contract["task_id"] == task.task_id for task in available)
 
@@ -846,7 +846,7 @@ class TestSN13Commands:
         assert payload["refused_tasks"] == 2
         assert "missing_max_task_cost" in payload["refusals"][0]["blockers"]
         workstream = SQLiteWorkstream(workstream_db_path)
-        assert workstream.list_available(subnet="sn13") == []
+        assert workstream.list_available(route_key="sn13") == []
 
     def test_sn13_plan_publish_console_entrypoint_works_end_to_end(self, tmp_path: Path):
         db_path = tmp_path / "sn13.sqlite3"
@@ -1397,6 +1397,8 @@ class TestSN13Commands:
                 str(workstream_db_path),
                 "--status",
                 "open",
+                "--route-key",
+                "sn13",
                 "--json-output",
             ],
         )
@@ -1404,6 +1406,7 @@ class TestSN13Commands:
         assert result.exit_code == 0
         payload = json.loads(result.output)
         assert payload["task_count"] == 2
+        assert payload["tasks"][0]["route_key"] == "sn13"
         assert payload["tasks"][0]["status"] == "open"
         assert payload["tasks"][0]["accepted_count"] == 1
 

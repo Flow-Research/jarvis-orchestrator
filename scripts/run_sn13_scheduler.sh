@@ -16,7 +16,7 @@ exec jarvis-miner sn13 scheduler run \
   --workstream-db-path "${JARVIS_WORKSTREAM_DB_PATH:-/app/data/workstream.sqlite3}" \
   --target-items "${JARVIS_SN13_TARGET_ITEMS:-5}" \
   --recent-buckets "${JARVIS_SN13_RECENT_BUCKETS:-1}" \
-  --max-tasks "${JARVIS_SN13_MAX_TASKS:-10}" \
+  --max-tasks "${JARVIS_SN13_MAX_TASKS:-500}" \
   --interval-seconds "${JARVIS_SN13_SCHEDULER_INTERVAL_SECONDS:-1200}" \
   --dd-timeout-seconds "${JARVIS_SN13_DD_TIMEOUT_SECONDS:-30}" \
   --max-task-cost "${JARVIS_SN13_MAX_TASK_COST}" \

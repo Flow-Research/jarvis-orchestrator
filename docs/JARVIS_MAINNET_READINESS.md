@@ -60,7 +60,7 @@ The current production-shape Jarvis stack has these always-on service roles:
 1. `registration-monitor`
    Uses `jarvis-miner monitor watch` for live SN13 registration pricing, threshold detection, and auto-register.
 2. `workstream-api`
-   Uses `jarvis-miner workstream serve` to expose the operator HTTP boundary.
+   Uses `jarvis-miner workstream serve` to expose the signed Workstream HTTP boundary.
 3. `sn13-scheduler`
    Uses `jarvis-miner sn13 scheduler run` to refresh Gravity/DD and publish economics-safe work.
 4. `jarvis-admin`
