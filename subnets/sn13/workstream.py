@@ -9,11 +9,11 @@ from .tasks import OperatorTask
 
 
 def workstream_task_from_sn13(task: OperatorTask) -> WorkstreamTask:
-    """Convert an SN13 operator task into a subnet-agnostic workstream task."""
+    """Convert an SN13 operator task into a generic workstream task."""
     contract = task.to_workstream_contract()
     return WorkstreamTask(
         task_id=task.task_id,
-        subnet="sn13",
+        route_key="sn13",
         source=task.source,
         contract=contract.model_dump(mode="json"),
         expires_at=contract.expires_at,

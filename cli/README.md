@@ -109,11 +109,12 @@ jarvis-miner workstream status --json-output
 jarvis-miner workstream tasks --json-output
 jarvis-miner workstream tasks --status open
 jarvis-miner workstream tasks --status completed
+jarvis-miner workstream tasks --route-key sn13
 ```
 
 `workstream status` shows runtime config, auth state, durable workstream counts, and SN13 canonical/audit counts.
 
-`workstream tasks` lists tasks from the durable workstream store with status, target, accepted progress, and quantity.
+`workstream tasks` lists tasks from the durable workstream store with internal route, status, target, accepted progress, and quantity.
 
 Machine-readable admin commands accept both `--json-output` and the shorter `--json`.
 

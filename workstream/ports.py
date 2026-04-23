@@ -24,7 +24,7 @@ class WorkstreamPort(Protocol):
     def list_available(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
         """Return tasks that can currently accept valid submissions."""

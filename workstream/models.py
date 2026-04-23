@@ -43,7 +43,7 @@ class WorkstreamTask(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     task_id: str = Field(..., min_length=1, max_length=160)
-    subnet: str = Field(..., min_length=1, max_length=32)
+    route_key: str = Field(..., min_length=1, max_length=64)
     source: str = Field(..., min_length=1, max_length=64)
     contract: dict[str, Any] = Field(..., min_length=1)
     status: WorkstreamTaskStatus = WorkstreamTaskStatus.OPEN
@@ -56,6 +56,16 @@ class WorkstreamTask(BaseModel):
     @classmethod
     def validate_datetime(cls, value: datetime | None) -> datetime | None:
         return ensure_utc(value) if value is not None else None
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_route_key(cls, value: Any) -> Any:
+        """Read older SQLite payloads that used `subnet` for the internal route."""
+        if isinstance(value, dict) and "route_key" not in value and "subnet" in value:
+            migrated = dict(value)
+            migrated["route_key"] = migrated.pop("subnet")
+            return migrated
+        return value
 
     @property
     def is_available(self) -> bool:
@@ -167,7 +177,7 @@ class OperatorSubmissionEnvelope(BaseModel):
     submission_id: str = Field(default_factory=lambda: f"opsub_{uuid4().hex}")
     task_id: str = Field(..., min_length=1)
     operator_id: str = Field(..., min_length=1, max_length=128)
-    subnet: str = Field(..., min_length=1, max_length=32)
+    route_key: str = Field(..., min_length=1, max_length=64)
     records: list[WorkstreamSubmissionRecord] = Field(..., min_length=1)
     submitted_at: datetime = Field(default_factory=utc_now)
 
@@ -193,13 +203,13 @@ class OperatorSubmissionRequest(BaseModel):
     def validate_submitted_at(cls, value: datetime) -> datetime:
         return require_aware_utc(value)
 
-    def to_internal_envelope(self, *, subnet: str) -> OperatorSubmissionEnvelope:
+    def to_internal_envelope(self, *, route_key: str) -> OperatorSubmissionEnvelope:
         """Attach internal routing before handing the upload to intake."""
         return OperatorSubmissionEnvelope(
             submission_id=self.submission_id,
             task_id=self.task_id,
             operator_id=self.operator_id,
-            subnet=subnet,
+            route_key=route_key,
             records=self.records,
             submitted_at=self.submitted_at,
         )

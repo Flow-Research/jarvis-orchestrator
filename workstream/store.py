@@ -35,12 +35,12 @@ class InMemoryWorkstream:
     def list_available(
         self,
         *,
-        subnet: str | None = None,
+        route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
         tasks = [task for task in self._tasks.values() if task.is_available]
-        if subnet is not None:
-            tasks = [task for task in tasks if task.subnet == subnet]
+        if route_key is not None:
+            tasks = [task for task in tasks if task.route_key == route_key]
         if source is not None:
             tasks = [task for task in tasks if task.source == source]
         return sorted(tasks, key=lambda task: (task.created_at, task.task_id))

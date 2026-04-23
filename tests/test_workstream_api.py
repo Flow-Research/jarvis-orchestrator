@@ -84,7 +84,7 @@ def test_workstream_api_lists_open_tasks():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X"},
         )
@@ -102,7 +102,7 @@ def test_workstream_api_get_task_hides_internal_route():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={
                 "task_id": "task_1",
@@ -124,7 +124,7 @@ def test_workstream_dashboard_renders_human_runtime_view():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X", "label": "#bittensor"},
         )
@@ -145,7 +145,7 @@ def test_workstream_api_accepts_submission_request_without_internal_route():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X"},
         )
@@ -174,7 +174,7 @@ def test_workstream_api_accepts_submission_request_without_internal_route():
 
     assert response.status_code == 200
     assert response.json()["accepted_count"] == 1
-    assert intake.submitted[0].subnet == "sn13"
+    assert intake.submitted[0].route_key == "sn13"
 
 
 def test_workstream_api_rejects_public_submission_with_internal_route_field():
@@ -182,7 +182,7 @@ def test_workstream_api_rejects_public_submission_with_internal_route_field():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X"},
         )
@@ -193,7 +193,7 @@ def test_workstream_api_rejects_public_submission_with_internal_route_field():
         json={
             "task_id": "task_1",
             "operator_id": "operator_1",
-            "subnet": "sn13",
+            "route_key": "sn13",
             "records": [
                 {
                     "uri": "https://x.com/example/status/1",
@@ -212,7 +212,7 @@ def test_workstream_api_rejects_unmodeled_submission_fields():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X"},
         )
@@ -242,7 +242,7 @@ def test_workstream_api_rejects_naive_source_created_at():
     workstream.publish(
         WorkstreamTask(
             task_id="task_1",
-            subnet="sn13",
+            route_key="sn13",
             source="X",
             contract={"task_id": "task_1", "source": "X"},
         )

@@ -1,12 +1,12 @@
 # Jarvis Orchestrator
 
-Multi-subnet miner management for Bittensor.
+Jarvis miner orchestration with a shared Workstream API for personal operators.
 
 ## Current System
 
-Jarvis is the subnet-facing miner and admin control plane.
+Jarvis is the miner-facing/admin control plane and work-routing layer.
 
-Personal operators do not use the CLI and do not join the subnet directly. They call the shared workstream HTTP API, submit candidate data, and Jarvis decides what becomes canonical miner truth.
+Personal operators do not use the CLI and do not join upstream networks directly. They call the shared Workstream HTTP API, submit candidate work, and Jarvis decides what becomes canonical truth for the matching internal adapter.
 
 The active SN13 path is:
 

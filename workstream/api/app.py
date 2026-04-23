@@ -708,7 +708,7 @@ def create_workstream_app(
                 status="rejected",
                 reasons=["task_not_found"],
             )
-        envelope = request.to_internal_envelope(subnet=task.subnet)
+        envelope = request.to_internal_envelope(route_key=task.route_key)
         return intake.submit(envelope)
 
     @app.get("/v1/operators/{operator_id}/stats", response_model=OperatorStats)
