@@ -58,6 +58,13 @@ After regeneration, restart `workstream-api` so the running process reloads the 
 docker compose -f docker-compose.local.yaml up -d workstream-api registration-monitor sn13-scheduler
 ```
 
+This is the company tester stack:
+
+- `workstream-api` serves the dashboard and signed operator API.
+- `registration-monitor` keeps registration cost visibility active without auto-registering.
+- `sn13-scheduler` refreshes real Gravity/DD and publishes supported X/Reddit workstream tasks.
+- `sn13-listener` stays off unless the team is testing live validator traffic.
+
 The human dashboard remains at:
 
 - `/`

@@ -78,6 +78,9 @@ services:
       JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
       JARVIS_SN13_GRAVITY_CACHE_DIR: ${PWD}/subnets/sn13/cache/gravity
       JARVIS_SN13_LISTENER_CAPTURE_DIR: ${PWD}/subnets/sn13/listener/captures
+      JARVIS_SN13_TARGET_ITEMS: ${JARVIS_SN13_TARGET_ITEMS:-5}
+      JARVIS_SN13_RECENT_BUCKETS: ${JARVIS_SN13_RECENT_BUCKETS:-1}
+      JARVIS_SN13_MAX_TASKS: ${JARVIS_SN13_MAX_TASKS:-500}
       JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
       PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:

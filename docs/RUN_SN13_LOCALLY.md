@@ -1,6 +1,6 @@
 # Run SN13 Locally
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ## What Works Today
 
@@ -47,7 +47,183 @@ Personal operators use:
 
 Personal operators do not use the Jarvis admin CLI.
 
-## Option A: Start The Runnable Stack With Docker Compose
+## Option A: Company Tester Mode With Docker Compose
+
+This is the default local deployment mode for internal testers.
+
+It runs:
+
+- `workstream-api`: dashboard and signed operator API
+- `registration-monitor`: burn-cost and registration visibility, with auto-register disabled
+- `sn13-scheduler`: real Gravity/DD refresh and task publication loop
+
+It does not run:
+
+- `sn13-listener`: validator-facing listener, only needed for live validator/miner testing
+
+The local operator flow is:
+
+```text
+real Gravity/DD -> scheduler -> durable workstream -> operator API -> SN13 intake -> canonical SQLite
+```
+
+### 1. Generate Tester Credentials
+
+Generate the persistent tester credential pack:
+
+```bash
+python3 scripts/generate_workstream_operator_credentials.py \
+  --count 20 \
+  --prefix company_tester \
+  --base-url http://127.0.0.1:8787
+```
+
+This writes stable local files:
+
+```text
+data/workstream/tester-pack/operators.server-operator-secrets.json
+data/workstream/tester-pack/operators.tester-handoff.json
+data/workstream/tester-pack/operators.operators/company_tester_01.json
+...
+data/workstream/tester-pack/operators.operators/company_tester_20.json
+```
+
+The files are intentionally under `data/`, which is gitignored. They are local runtime secrets, not repo files.
+
+### 2. Start Tester Mode
+
+Start the current runnable services:
+
+```bash
+docker compose -f docker-compose.local.yaml up -d \
+  workstream-api \
+  registration-monitor \
+  sn13-scheduler
+```
+
+Check status:
+
+```bash
+docker compose -f docker-compose.local.yaml ps
+curl http://127.0.0.1:8787/health
+JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE=$PWD/data/workstream/tester-pack/operators.server-operator-secrets.json \
+  uv run jarvis-miner workstream status --json
+```
+
+Open the dashboard:
+
+```text
+http://127.0.0.1:8787/
+```
+
+### 3. Optional HTTPS With Ngrok
+
+If external testers need HTTPS:
+
+```bash
+$HOME/.local/bin/ngrok http 8787
+```
+
+Use the generated HTTPS URL to regenerate the same persistent credential files:
+
+```bash
+python3 scripts/generate_workstream_operator_credentials.py \
+  --count 20 \
+  --prefix company_tester \
+  --base-url https://YOUR-NGROK-URL
+
+docker compose -f docker-compose.local.yaml restart workstream-api
+```
+
+Give each tester exactly one file from:
+
+```text
+data/workstream/tester-pack/operators.operators/
+```
+
+Do not give testers `operators.server-operator-secrets.json`.
+
+### 4. Scheduler Behavior
+
+The scheduler is required in tester mode. It creates operator-facing tasks without waiting for validators.
+
+The scheduler does this every cycle:
+
+1. fetches the real public Gravity aggregate
+2. parses Dynamic Desirability jobs
+3. compares desired jobs against current canonical SQLite coverage
+4. applies planner limits and economics refusal
+5. publishes accepted tasks into the durable workstream
+
+The default source is real Gravity:
+
+```text
+https://raw.githubusercontent.com/macrocosm-os/gravity/main/total.json
+```
+
+The scheduler log should show a real DD source and a real job count, for example:
+
+```text
+DD jobs: 451
+Planned tasks: 446
+Published tasks: 446
+```
+
+The exact counts change as Gravity changes. In the verified local run on 2026-04-23, the real Gravity payload contained:
+
+```bash
+total jobs: 451
+X jobs: 281
+Reddit jobs: 165
+YouTube jobs: 5
+currently supported jobs: 446
+```
+
+The local tester stack publishes all currently supported X and Reddit jobs for the current planning bucket by default. YouTube jobs are intentionally not published yet because the YouTube intake/export path has not been hardened.
+
+`500` is not an upstream Gravity limit. It is the local tester-mode safety cap, chosen to cover the current `446` supported jobs without cutting them off:
+
+```bash
+JARVIS_SN13_MAX_TASKS=500
+```
+
+Other local planning settings:
+
+```bash
+JARVIS_SN13_TARGET_ITEMS=5
+JARVIS_SN13_RECENT_BUCKETS=1
+JARVIS_SN13_SCHEDULER_INTERVAL_SECONDS=1200
+```
+
+These are real-work tester defaults:
+
+- `TARGET_ITEMS=5` means each task asks for up to 5 accepted records.
+- `RECENT_BUCKETS=1` means one current hourly bucket per Gravity job.
+- `MAX_TASKS=500` prevents runaway publication if Gravity changes sharply.
+
+Increase volume only when the tester group is ready for more work:
+
+```bash
+JARVIS_SN13_TARGET_ITEMS=25
+JARVIS_SN13_RECENT_BUCKETS=3
+JARVIS_SN13_MAX_TASKS=1500
+```
+
+Then restart the scheduler:
+
+```bash
+docker compose -f docker-compose.local.yaml restart sn13-scheduler
+```
+
+### 5. Listener Stays Off
+
+Do not start the listener for company tester mode. The listener is validator-facing and is only needed when testing live validator/miner behavior:
+
+```bash
+docker compose -f docker-compose.local.yaml --profile listener up -d sn13-listener
+```
+
+## Option B: Manual Local Admin Flow
 
 Edit the deployment env used by Compose:
 
@@ -63,7 +239,7 @@ JARVIS_WORKSTREAM_REQUIRE_AUTH=1
 JARVIS_MONITOR_AUTO_REGISTER=0
 ```
 
-If you want task publication without depending on live Gravity during local development, publish sample tasks manually before or after starting Compose:
+If you want task publication without depending on live Gravity during local development, publish sample tasks manually:
 
 ```bash
 uv run jarvis-miner sn13 plan publish \
@@ -79,27 +255,7 @@ uv run jarvis-miner sn13 plan publish \
   --payout-basis accepted_scorable_record
 ```
 
-Then start the current runnable services:
-
-```bash
-docker compose up -d registration-monitor workstream-api sn13-scheduler
-```
-
-Check status:
-
-```bash
-docker compose ps
-uv run jarvis-miner workstream status --json
-uv run jarvis-miner workstream tasks --json
-```
-
-The optional listener container exists, but it is not part of the current local operator flow:
-
-```bash
-docker compose --profile listener up -d sn13-listener
-```
-
-## Option B: Start The Runnable Stack Directly With CLI
+## Option C: Start The Runnable Stack Directly With CLI
 
 ### 1. Publish some SN13 tasks
 
@@ -135,7 +291,25 @@ export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
 uv run jarvis-miner workstream serve --host 127.0.0.1 --port 8787
 ```
 
-### 3. Optional scheduler loop
+### 3. Real Gravity scheduler loop
+
+Use this when you want the CLI path to behave like company tester mode:
+
+```bash
+uv run jarvis-miner sn13 scheduler run --once \
+  --max-task-cost 20 \
+  --expected-reward 30 \
+  --expected-submitted 1200 \
+  --expected-accepted 900 \
+  --duplicate-rate 0.04 \
+  --rejection-rate 0.10 \
+  --validation-pass-probability 0.95 \
+  --payout-basis accepted_scorable_record
+```
+
+This refreshes real Gravity before planning. Do not pass `--sample-dd` for real tester work.
+
+### 4. Sample scheduler loop
 
 ```bash
 uv run jarvis-miner sn13 scheduler run --once \
@@ -150,7 +324,7 @@ uv run jarvis-miner sn13 scheduler run --once \
   --payout-basis accepted_scorable_record
 ```
 
-### 4. Verify the admin side
+### 5. Verify the admin side
 
 ```bash
 uv run jarvis-miner workstream status --json
@@ -204,10 +378,11 @@ accepted records are already exported and uploaded upstream
 
 If you want to show this to another person right now, use this exact sequence:
 
-1. `uv run jarvis-miner sn13 plan publish --sample-dd ...`
-2. `uv run jarvis-miner workstream serve`
-3. `uv run jarvis-miner workstream tasks --json`
-4. give the operator agent the workstream skill plus its three env vars
-5. let the operator call the API and submit records
-6. inspect `uv run jarvis-miner workstream status --json`
-7. inspect operator quality stats through the API
+1. generate tester credentials with `scripts/generate_workstream_operator_credentials.py`
+2. start `workstream-api`, `registration-monitor`, and `sn13-scheduler`
+3. confirm the scheduler published real Gravity tasks
+4. give each tester one JSON file from `data/workstream/tester-pack/operators.operators/`
+5. give testers the published workstream skill
+6. let each operator call the API and submit records
+7. inspect `uv run jarvis-miner workstream status --json`
+8. inspect operator quality stats through the API
