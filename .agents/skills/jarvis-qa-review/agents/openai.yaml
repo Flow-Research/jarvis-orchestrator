@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jarvis QA Review"
+  short_description: "Review Jarvis changes for correctness and readiness."
+  default_prompt: "Use the Jarvis QA Review skill to review Jarvis changes for correctness, durability, economics, architecture boundaries, and documentation consistency."

@@ -1,0 +1,99 @@
+# Jarvis Miner — Registration Price Monitor Config
+#
+# ══════════════════════════════════════════════════════════════════════════
+# FULL SETUP (do these steps in order)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# STEP 1: Create a bittensor wallet (if you don't have one)
+#
+#   btcli wallet new_coldkey   --wallet.name jarvis --wallet.path ~/.bittensor/wallets
+#   btcli wallet new_hotkey    --wallet.name jarvis --wallet.hotkey miner1 --wallet.path ~/.bittensor/wallets
+#
+#   This creates:
+#     ~/.bittensor/wallets/jarvis/coldkeypub.txt  (your TAO address)
+#     ~/.bittensor/wallets/jarvis/hotkeys/miner1  (your neuron key)
+#
+# STEP 2: Fund your coldkey with TAO
+#
+#   btcli wallet overview --wallet.name jarvis
+#   # Copy the coldkey SS58 address, send TAO to it from an exchange
+#
+# STEP 3: Set environment variables (for alerts)
+#
+#   export DISCORD_WEBHOOK="https://discord.com/api/webhooks/YOUR_WEBHOOK"
+#   export TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+#   export TELEGRAM_USER_ID="5261349563"
+#
+# STEP 4: Update the wallet section below to match your wallet
+#
+# STEP 5: Verify everything is ready
+#
+#   jarvis-miner wallet          # check wallet exists, balance, registrations
+#   jarvis-miner validate        # validate config
+#   jarvis-miner price           # check current prices
+#
+# STEP 6: Run the monitor
+#
+#   jarvis-miner watch           # starts monitoring + auto-register + deregister alerts
+#
+# ══════════════════════════════════════════════════════════════════════════
+
+global:
+  subtensor_network: finney
+  data_dir: data
+
+subnets:
+  - netuid: 6
+    nickname: "Numinous"
+    enabled: true
+    wallet:
+      name: sn6miner
+      hotkey: default
+  - netuid: 8
+    nickname: "Vanta"
+    enabled: true
+    wallet:
+      name: sn8miner
+      hotkey: default
+  - netuid: 9
+    nickname: "Pretraining"
+    enabled: true
+    wallet:
+      name: sn9miner
+      hotkey: default
+  - netuid: 13
+    nickname: "Data Universe"
+    enabled: true
+    wallet:
+      name: sn13miner
+      hotkey: default
+  - netuid: 18
+    nickname: "Zeus"
+    enabled: true
+    wallet:
+      name: sn18miner
+      hotkey: default
+  - netuid: 28
+    nickname: "S&P Oracle"
+    enabled: true
+    wallet:
+      name: sn28miner
+      hotkey: default
+  - netuid: 37
+    nickname: "Finetuning"
+    enabled: true
+    wallet:
+      name: sn37miner
+      hotkey: default
+  - netuid: 41
+    nickname: "Sports Tensor"
+    enabled: true
+    wallet:
+      name: sn41miner
+      hotkey: default
+  - netuid: 50
+    nickname: "Synth"
+    enabled: true
+    wallet:
+      name: sn50miner
+      hotkey: default

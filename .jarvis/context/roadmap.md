@@ -2,16 +2,28 @@
 
 ## Now
 
-- _List the current phase and immediate milestones._
+- Complete SN13 production hardening before any mainnet claim.
+- Deliver:
+  - archive/upload pipeline around canonical export artifacts
+  - deployment verification for the committed listener runtime on canonical SQLite
+  - listener daemon entrypoint and supervisor path for deployed runtime
+  - live validator capture with request/response fixture verification
+  - persistent operator accounting ledger
+  - automated DD refresh/publication operation review
 
 ## Next
 
-- _List the next phase or the next major deliverables._
+- harden workstream API edge limits and replay protection
+- add operator capability visibility filters
+- document final operator settlement/accounting policy
 
 ## Later
 
-- _List deferred work, dependencies, or future milestones._
+- multi-node workstream deployment path
+- future subnet adapters on the same workstream boundary
 
 ## Notes
 
-- _Capture sequencing assumptions and open roadmap questions._
+- SN13 sequencing is documented in `subnets/sn13/docs/IMPLEMENTATION_PLAN.md`.
+- The implementation rule is one active phase at a time.
+- Upstream SN13 should be treated as a protocol reference, not a codebase to overwrite Jarvis with.

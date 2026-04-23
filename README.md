@@ -1,213 +1,168 @@
-<div align="center">
+# Jarvis Orchestrator
 
-# **Bittensor Subnet Template** <!-- omit in toc -->
-[![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+Jarvis miner orchestration with a shared Workstream API for personal operators.
 
----
+## Current System
 
-## The Incentivized Internet <!-- omit in toc -->
+Jarvis is the miner-facing/admin control plane and work-routing layer.
 
-[Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
-</div>
+Personal operators do not use the CLI and do not join upstream networks directly. They call the shared Workstream HTTP API, submit candidate work, and Jarvis decides what becomes canonical truth for the matching internal adapter.
 
----
-- [Quickstarter template](#quickstarter-template)
-- [Introduction](#introduction)
-  - [Example](#example)
-- [Installation](#installation)
-  - [Before you proceed](#before-you-proceed)
-  - [Install](#install)
-- [Writing your own incentive mechanism](#writing-your-own-incentive-mechanism)
-- [Writing your own subnet API](#writing-your-own-subnet-api)
-- [Subnet Links](#subnet-links)
-- [License](#license)
+The active SN13 path is:
 
----
-## Quickstarter template
-
-This template contains all the required installation instructions, scripts, and files and functions for:
-- Building Bittensor subnets.
-- Creating custom incentive mechanisms and running these mechanisms on the subnets. 
-
-In order to simplify the building of subnets, this template abstracts away the complexity of the underlying blockchain and other boilerplate code. While the default behavior of the template is sufficient for a simple subnet, you should customize the template in order to meet your specific requirements.
----
-
-## Introduction
-
-**IMPORTANT**: If you are new to Bittensor subnets, read this section before proceeding to [Installation](#installation) section. 
-
-The Bittensor blockchain hosts multiple self-contained incentive mechanisms called **subnets**. Subnets are playing fields in which:
-- Subnet miners who produce value, and
-- Subnet validators who produce consensus
-
-determine together the proper distribution of TAO for the purpose of incentivizing the creation of value, i.e., generating digital commodities, such as intelligence or data. 
-
-Each subnet consists of:
-- Subnet miners and subnet validators.
-- A protocol using which the subnet miners and subnet validators interact with one another. This protocol is part of the incentive mechanism.
-- The Bittensor API using which the subnet miners and subnet validators interact with Bittensor's onchain consensus engine [Yuma Consensus](https://bittensor.com/documentation/validating/yuma-consensus). The Yuma Consensus is designed to drive these actors: subnet validators and subnet miners, into agreement on who is creating value and what that value is worth. 
-
-This starter template is split into three primary files. To write your own incentive mechanism, you should edit these files. These files are:
-1. `template/protocol.py`: Contains the definition of the protocol used by subnet miners and subnet validators.
-2. `neurons/miner.py`: Script that defines the subnet miner's behavior, i.e., how the subnet miner responds to requests from subnet validators.
-3. `neurons/validator.py`: This script defines the subnet validator's behavior, i.e., how the subnet validator requests information from the subnet miners and determines the scores.
-
-### Example
-
-The Bittensor Subnet 1 for Text Prompting is built using this template. See [prompting](https://github.com/macrocosm-os/prompting) for how to configure the files and how to add monitoring and telemetry and support multiple miner types. Also see this Subnet 1 in action on [Taostats](https://taostats.io/subnets/netuid-1/) explorer.
-
----
-
-## Installation
-
-### Before you proceed
-Before you proceed with the installation of the subnet, note the following: 
-
-- Use these instructions to run your subnet locally for your development and testing, or on Bittensor testnet or on Bittensor mainnet. 
-- **IMPORTANT**: We **strongly recommend** that you first run your subnet locally and complete your development and testing before running the subnet on Bittensor testnet. Furthermore, make sure that you next run your subnet on Bittensor testnet before running it on the Bittensor mainnet.
-- You can run your subnet either as a subnet owner, or as a subnet validator or as a subnet miner. 
-- **IMPORTANT:** Make sure you are aware of the minimum compute requirements for your subnet. See the [Minimum compute YAML configuration](./min_compute.yml).
-- Note that installation instructions differ based on your situation: For example, installing for local development and testing will require a few additional steps compared to installing for testnet. Similarly, installation instructions differ for a subnet owner vs a validator or a miner. 
-
-### Install
-
-- **Running locally**: Follow the step-by-step instructions described in this section: [Running Subnet Locally](./docs/running_on_staging.md).
-- **Running on Bittensor testnet**: Follow the step-by-step instructions described in this section: [Running on the Test Network](./docs/running_on_testnet.md).
-- **Running on Bittensor mainnet**: Follow the step-by-step instructions described in this section: [Running on the Main Network](./docs/running_on_mainnet.md).
-
----
-
-## Writing your own incentive mechanism
-
-As described in [Quickstarter template](#quickstarter-template) section above, when you are ready to write your own incentive mechanism, update this template repository by editing the following files. The code in these files contains detailed documentation on how to update the template. Read the documentation in each of the files to understand how to update the template. There are multiple **TODO**s in each of the files identifying sections you should update. These files are:
-- `template/protocol.py`: Contains the definition of the wire-protocol used by miners and validators.
-- `neurons/miner.py`: Script that defines the miner's behavior, i.e., how the miner responds to requests from validators.
-- `neurons/validator.py`: This script defines the validator's behavior, i.e., how the validator requests information from the miners and determines the scores.
-- `template/forward.py`: Contains the definition of the validator's forward pass.
-- `template/reward.py`: Contains the definition of how validators reward miner responses.
-
-In addition to the above files, you should also update the following files:
-- `README.md`: This file contains the documentation for your project. Update this file to reflect your project's documentation.
-- `CONTRIBUTING.md`: This file contains the instructions for contributing to your project. Update this file to reflect your project's contribution guidelines.
-- `template/__init__.py`: This file contains the version of your project.
-- `setup.py`: This file contains the metadata about your project. Update this file to reflect your project's metadata.
-- `docs/`: This directory contains the documentation for your project. Update this directory to reflect your project's documentation.
-
-__Note__
-The `template` directory should also be renamed to your project name.
----
-
-# Writing your own subnet API
-To leverage the abstract `SubnetsAPI` in Bittensor, you can implement a standardized interface. This interface is used to interact with the Bittensor network and can be used by a client to interact with the subnet through its exposed axons.
-
-What does Bittensor communication entail? Typically two processes, (1) preparing data for transit (creating and filling `synapse`s) and (2), processing the responses received from the `axon`(s).
-
-This protocol uses a handler registry system to associate bespoke interfaces for subnets by implementing two simple abstract functions:
-- `prepare_synapse`
-- `process_responses`
-
-These can be implemented as extensions of the generic `SubnetsAPI` interface.  E.g.:
-
-
-This is abstract, generic, and takes(`*args`, `**kwargs`) for flexibility. See the extremely simple base class:
-```python
-class SubnetsAPI(ABC):
-    def __init__(self, wallet: "bt.wallet"):
-        self.wallet = wallet
-        self.dendrite = bt.dendrite(wallet=wallet)
-
-    async def __call__(self, *args, **kwargs):
-        return await self.query_api(*args, **kwargs)
-
-    @abstractmethod
-    def prepare_synapse(self, *args, **kwargs) -> Any:
-        """
-        Prepare the synapse-specific payload.
-        """
-        ...
-
-    @abstractmethod
-    def process_responses(self, responses: List[Union["bt.Synapse", Any]]) -> Any:
-        """
-        Process the responses from the network.
-        """
-        ...
-
+```text
+real Gravity/DD -> planner -> durable workstream
+-> workstream API submissions -> SN13 intake + quality gate
+-> canonical SQLite -> miner index / validator responses
+-> upstream export + Jarvis archive
 ```
 
+The current SN13 workstream model is open competitive intake:
 
-Here is a toy example:
+- tasks are open to multiple operators
+- operators submit against the published contract
+- duplicates and out-of-contract data are rejected
+- each task closes when accepted-cap is reached or the task expires
 
-```python
-from bittensor.subnets import SubnetsAPI
-from MySubnet import MySynapse
+## Structure
 
-class MySynapseAPI(SubnetsAPI):
-    def __init__(self, wallet: "bt.wallet"):
-        super().__init__(wallet)
-        self.netuid = 99
-
-    def prepare_synapse(self, prompt: str) -> MySynapse:
-        # Do any preparatory work to fill the synapse
-        data = do_prompt_injection(prompt)
-
-        # Fill the synapse for transit
-        synapse = StoreUser(
-            messages=[data],
-        )
-        # Send it along
-        return synapse
-
-    def process_responses(self, responses: List[Union["bt.Synapse", Any]]) -> str:
-        # Look through the responses for information required by your application
-        for response in responses:
-            if response.dendrite.status_code != 200:
-                continue
-            # potentially apply post processing
-            result_data = postprocess_data_from_response(response)
-        # return data to the client
-        return result_data
+```
+jarvis-orchestrator/
+├── cli/                      # CLI commands
+│   └── README.md            # CLI documentation
+├── workstream/               # Shared task store, strict API models, FastAPI transport
+├── subnets/                  # Per-subnet miner implementations
+│   ├── sn6/                  # Numinous — forecasting
+│   └── sn13/                 # Data Universe — data scraping
+├── miner_tools/              # Shared operational tooling
+│   └── README.md          # Tools documentation
+├── tests/
+├── docs/
+└── pyproject.toml
 ```
 
-You can use a subnet API to the registry by doing the following:
-1. Download and install the specific repo you want
-1. Import the appropriate API handler from bespoke subnets
-1. Make the query given the subnet specific API
+## Quick Start
 
+For the current runnable local operator flow, read `docs/RUN_SN13_LOCALLY.md` first.
 
+```bash
+# Install
+uv pip install --python .venv/bin/python -e .
+ln -sf "$(pwd)/.venv/bin/jarvis-miner" ~/.local/bin/jarvis-miner
 
-# Subnet Links
-In order to see real-world examples of subnets in-action, see the `subnet_links.py` document or access them from inside the `template` package by:
-```python
-import template
-template.SUBNET_LINKS
-[{'name': 'sn0', 'url': ''},
- {'name': 'sn1', 'url': 'https://github.com/opentensor/prompting/'},
- {'name': 'sn2', 'url': 'https://github.com/bittranslateio/bittranslate/'},
- {'name': 'sn3', 'url': 'https://github.com/gitphantomman/scraping_subnet/'},
- {'name': 'sn4', 'url': 'https://github.com/manifold-inc/targon/'},
-...
-]
+# CLI help
+jarvis-miner --help
+
+# Registration price monitor and old compatibility aliases
+jarvis-miner monitor price 13
+jarvis-miner monitor watch
+jarvis-miner deregister-check
+
+# Admin starts the workstream HTTP boundary
+JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
+  jarvis-miner workstream serve
+
+# For local-only unsigned development
+export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
+
+# Admin publishes planned SN13 work into the durable workstream
+jarvis-miner sn13 plan publish --sample-dd --json-output \
+  --max-task-cost 20 --expected-reward 30 --expected-submitted 1200 \
+  --expected-accepted 900 --duplicate-rate 0.04 --rejection-rate 0.10 \
+  --validation-pass-probability 0.95 --payout-basis accepted_scorable_record
+
+# Admin inspects workstream runtime state
+jarvis-miner workstream status --json-output
+jarvis-miner workstream tasks --status open --json-output
+
+# Admin runs automated DD refresh + publication
+jarvis-miner sn13 scheduler run --once \
+  --max-task-cost 20 --expected-reward 30 --expected-submitted 1200 \
+  --expected-accepted 900 --duplicate-rate 0.04 --rejection-rate 0.10 \
+  --validation-pass-probability 0.95 --payout-basis accepted_scorable_record
+
+# SN13 readiness, real Gravity refresh, planning, and local simulation
+jarvis-miner sn13 readiness --network testnet
+jarvis-miner sn13 dd refresh
+jarvis-miner sn13 dd show
+jarvis-miner sn13 economics estimate --source X --label '#bittensor' --json-output
+jarvis-miner sn13 plan tasks
+jarvis-miner sn13 simulate cycle
+jarvis-miner sn13 simulate operator --source X --label "#bittensor" --count 5
+jarvis-miner sn13 simulate validator --query bucket --source X --label "#bittensor"
 ```
+
+Machine-readable admin commands accept both `--json-output` and the shorter `--json`.
+
+Mainnet deployment package:
+
+- deployment and cost brief: `docs/JARVIS_MAINNET_READINESS.md`
+- Docker image: `Dockerfile`
+- Compose stack: `docker-compose.yaml`
+- deployment env: `deploy/jarvis.mainnet.env`
+- monitor config: `deploy/monitor.mainnet.yaml`
+
+## What Is Runnable Now
+
+Runnable now:
+
+- task publication into durable SQLite workstream
+- workstream HTTP API for personal operators
+- read-only human runtime dashboard at `/`
+- SN13 intake and quality gate into canonical SQLite
+- operator stats and audit facts
+
+Not end-to-end complete yet:
+
+- live validator traffic verification on the SN13 listener
+- upstream parquet export/upload
+- Jarvis archive upload
+
+## Documentation
+
+- [Engineering Gates](docs/ENGINEERING_GATES.md)
+- [Workstream Architecture](docs/WORKSTREAM_ARCHITECTURE.md)
+- [Official Workstream Operator Skill](docs/skills/jarvis-workstream/SKILL.md)
+- [CLI Admin Guide](cli/README.md)
+- [Miner Tools](miner_tools/README.md)
+- [SN13 Architecture](subnets/sn13/docs/ARCHITECTURE.md)
+- [SN13 Operator Contract](subnets/sn13/docs/OPERATOR_CONTRACT.md)
+- [SN13 Economics](subnets/sn13/docs/ECONOMICS.md)
+
+## Project-Local Agent Skills
+
+Project-local skills live in `.agents/skills/` and are internal QA/development automation.
+
+Current internal skills:
+
+- `jarvis-test-runner`: lint, focused tests, coverage gate, and integration gate execution
+- `jarvis-qa-review`: architecture, economics, durability, and docs review
+
+The external personal-operator instructions are published as [Official Workstream Operator Skill](docs/skills/jarvis-workstream/SKILL.md), not as an internal project skill.
+
+## Testing
+
+```bash
+uv run pytest tests/ -v
+uv run pytest -q -m integration tests/test_sn13_testcontainers.py
+uv run ruff check cli/ miner_tools/ subnets/
+```
+
+The integration test suite uses Testcontainers and requires Docker.
+
+Current engineering rule:
+
+- changes require tests
+- economic decisions must be explicit
+- architecture boundaries must remain consistent with the SN13 docs and workstream docs
+
+## CI
+
+CI runs through `uv`, verifies Docker availability, runs the SN13/CLI unit slice,
+and then runs the Testcontainers-backed integration slice.
+
+SN13's supported operator path is workstream-published scrape demand followed by intake enforcement. Old copied upstream docs, generated local state, mock query guides, and validator-query decomposition prototypes are removed from the repository.
 
 ## License
-This repository is licensed under the MIT License.
-```text
-# The MIT License (MIT)
-# Copyright © 2024 Opentensor Foundation
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-```
+Internal use only.

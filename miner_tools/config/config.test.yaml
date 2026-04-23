@@ -1,0 +1,68 @@
+# Jarvis Miner — R-01 Registration Price Monitor Config (TESTNET)
+#
+# USAGE:
+#   jarvis-miner -c config/config.test.yaml watch
+#   jarvis-miner -c config/config.test.yaml price
+#
+# Testnet burn costs are very low (~0.0005 TAO), so thresholds
+# are set low. Short poll intervals for quick testing feedback.
+
+global:
+  subtensor_network: test
+  data_dir: data/testnet
+
+subnets:
+  - netuid: 6
+    nickname: "Numinous"
+    enabled: true
+    wallet:
+      name: sn6miner
+      hotkey: default
+  - netuid: 8
+    nickname: "Vanta"
+    enabled: true
+    wallet:
+      name: sn8miner
+      hotkey: default
+  - netuid: 9
+    nickname: "Pretraining"
+    enabled: true
+    wallet:
+      name: sn9miner
+      hotkey: default
+  - netuid: 13
+    nickname: "Data Universe"
+    enabled: true
+    wallet:
+      name: sn13miner
+      hotkey: default
+  - netuid: 18
+    nickname: "Zeus"
+    enabled: true
+    wallet:
+      name: sn18miner
+      hotkey: default
+  - netuid: 28
+    nickname: "S&P Oracle"
+    enabled: true
+    wallet:
+      name: sn28miner
+      hotkey: default
+  - netuid: 37
+    nickname: "Finetuning"
+    enabled: true
+    wallet:
+      name: sn37miner
+      hotkey: default
+  - netuid: 41
+    nickname: "Sports Tensor"
+    enabled: true
+    wallet:
+      name: sn41miner
+      hotkey: default
+  - netuid: 50
+    nickname: "Synth"
+    enabled: true
+    wallet:
+      name: sn50miner
+      hotkey: default

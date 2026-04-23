@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  unit-and-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ARROW_USER_SIMD_LEVEL: NONE
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --dev --frozen
+
+      - name: Verify Docker for Testcontainers
+        run: docker info
+
+      - name: Run lint
+        run: |
+          uv run ruff check \
+            cli/main.py \
+            workstream \
+            subnets/sn13 \
+            tests/test_cli.py \
+            tests/test_workstream.py \
+            tests/test_workstream_api.py \
+            tests/test_sn13_*.py \
+            tests/test_engineering_governance.py \
+            scripts/validate_external_skills.py
+
+      - name: Validate external operator skills
+        run: uv run python scripts/validate_external_skills.py
+
+      - name: Run unit tests with coverage gate
+        run: |
+          uv run pytest -q tests -m 'not integration' \
+            --cov=subnets.sn13 \
+            --cov=workstream \
+            --cov-report=term-missing \
+            -W error::ResourceWarning
+
+      - name: Run Testcontainers integration tests
+        run: uv run pytest -q -m integration tests/test_sn13_testcontainers.py

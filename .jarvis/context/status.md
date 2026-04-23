@@ -2,20 +2,165 @@
 
 ## Current Focus
 
-- _Add the active work stream here._
+- Stabilize `jarvis-miner` as the Jarvis admin/control-plane CLI entrypoint.
+- Rebuild SN13 around a miner-compatible data contract and phase-gated implementation plan.
+- Feature work is frozen until testing discipline, economics, and architecture gates are explicit and enforced.
 
 ## Active Work
 
-- _List the in-flight initiatives that reflect current execution truth._
+- CLI refactor has been aligned and tested against the grouped command surface.
+- `cli/main.py` is now the canonical CLI implementation; the old `cli_v2` package and legacy CLI wrappers have been removed.
+- `jarvis-miner` is installed as the normal operational entrypoint and linked from `~/.local/bin/jarvis-miner`.
+- Jarvis administrators use `jarvis-miner`; personal operators use the FastAPI workstream API only.
+- `python -m cli` is only for low-level packaging/debug fallback.
+- Test coverage has been expanded:
+  - full non-integration suite currently covers 267 tests with an 80% coverage floor
+  - governance/CLI/workstream/readiness focused slice currently covers 82 tests
+  - Testcontainers integration slice validates export artifacts across a real Docker container boundary
+  - `testcontainers` is a dev dependency
+- CI has been updated:
+  - GitHub Actions test workflow runs `uv`, Docker verification, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
+  - CircleCI config now uses Python 3.12, `uv`, `setup_remote_docker`, lint, external skill validation, non-integration tests with coverage, and Testcontainers integration tests
+- Mainnet deployment packaging now includes:
+  - `Dockerfile`
+  - `compose.yaml`
+  - `deploy/jarvis.mainnet.env`
+  - `deploy/monitor.mainnet.yaml`
+  - `docs/JARVIS_MAINNET_READINESS.md`
+- SN13 has been reset onto:
+  - canonical miner models
+  - operator intake models
+  - SQLite-only storage
+  - protocol adapter responses from canonical storage
+- SN13 Phase 1 is now implemented:
+  - `subnets/sn13/policy.py`
+  - `tests/test_sn13_policy.py`
+  - policy-backed scorable/non-scorable classification
+- SN13 Phase 2 is now implemented:
+  - `subnets/sn13/desirability.py`
+  - `tests/test_sn13_desirability.py`
+  - upstream-style Gravity job normalization and matching
+- SN13 Phase 3 is now implemented:
+  - `subnets/sn13/quality.py`
+  - `tests/test_sn13_quality.py`
+  - rejection reasons, duplicate classification, and operator quality stats
+- SN13 Phase 4 is now implemented:
+  - `subnets/sn13/planner.py`
+  - `tests/test_sn13_planner.py`
+  - ranked operator scrape demand from policy, desirability, and coverage gaps
+- SN13 Phase 5 is now implemented:
+  - `subnets/sn13/tasks.py`
+  - `tests/test_sn13_tasks.py`
+  - planner demand -> operator task -> quality-checked ingestion -> SQLite storage
+- SN13 Phase 6 is now implemented locally:
+  - `subnets/sn13/export.py`
+  - `tests/test_sn13_export.py`
+  - canonical SQLite -> X/Reddit parquet artifacts
+  - upstream filename, row-count, path, and schema checks
+- SN13 Phase 7 adapter work is now implemented:
+  - `subnets/sn13/listener/protocol_adapter.py`
+  - `tests/test_sn13_protocol_adapter.py`
+  - exact upstream response fields for index, bucket, and contents requests
+  - upstream compressed miner index JSON shape
+- Old SN13 code and data have been removed:
+  - copied `docs/bittensor-basics/` upstream/reference tree
+  - old validator-query decomposition modules
+  - old mock query scripts
+  - generated local runtime state, cache, SQLite data, logs, and pycache
+- SN13 runtime readiness and economic gating are now implemented:
+  - `subnets/sn13/config/minimum_requirements.yaml`
+  - `subnets/sn13/readiness.py`
+  - `subnets/sn13/docs/MINIMUM_REQUIREMENTS.md`
+  - `tests/test_sn13_readiness.py`
+  - readiness is limited to Jarvis runtime, intake, export, and archive capability
+  - task publication is controlled by DD, planner support, and economics refusal, not readiness source credentials
+- CLI now exposes first-class SN13 operations:
+  - `jarvis-miner sn13 readiness`
+  - `jarvis-miner sn13 dd refresh`
+  - `jarvis-miner sn13 dd show`
+  - `jarvis-miner sn13 plan tasks`
+  - `jarvis-miner sn13 scheduler run`
+  - `jarvis-miner sn13 simulate operator`
+  - `jarvis-miner sn13 simulate validator`
+  - `jarvis-miner sn13 simulate cycle`
+  - root command prints the `JARVIS ORCHESTRATOR` banner
+  - legacy registration monitor commands are restored under `jarvis-miner monitor ...`
+  - root compatibility aliases are restored: `watch`, `price`, `status`, `info`, `register`, `deregister-check`, `validate`, `config-show`
+  - monitor watch now uses a live quiet dashboard by default; `-v` enables detailed poll logs
+  - monitor watch now keeps live burn cost, threshold state, auto-join state, and deregistration state visible in one screen
+  - auto-register now enforces `max_spend_tao` instead of treating it as documentation-only
+  - deregister monitoring now auto-tracks the Jarvis wallet hotkey on auto-register subnets when no explicit watch list is configured
+  - DD operations default to real Gravity cache; `--sample-dd` is test/development only
+  - cycle simulation uses DD parsing, planner, operator task contract, quality gate, SQLite, protocol adapter, and local parquet export
+  - `cli/README.md` is now the canonical admin guide for install, command map, SN13 workflow, readiness, simulations, miner lifecycle, and troubleshooting
+- SN13 production listener runtime entrypoint is now committed.
+  - The old experimental listener was removed because it decomposed validator requests into operator tasks.
+  - `subnets/sn13/listener/listener.py` now starts the axon-backed runtime.
+  - `subnets/sn13/listener/runtime.py` serves canonical SQLite through `protocol_adapter.py` and records captures through `protocol_observer.py`.
+- SN13 design docs have been hardened into a production architecture package:
+  - glossary
+  - end-to-end architecture
+  - data value and incentive model
+  - economics and cost gates
+  - operator contract
+  - minimum requirements and economic gates
+  - phased implementation plan
+  - upstream assumption ledger
+  - upstream sync strategy
+- Engineering governance is now documented in `docs/ENGINEERING_GATES.md`.
+- Economics governance is now documented in `subnets/sn13/docs/ECONOMICS.md`.
+- SN13 cost/margin gates now have a pure implementation and tests in `subnets/sn13/economics.py` and `tests/test_sn13_economics.py`.
+- CLI economics estimates are exposed through `jarvis-miner sn13 economics estimate`.
+- Shared operator workstream architecture is now defined:
+  - `docs/WORKSTREAM_ARCHITECTURE.md`
+  - `workstream/` for adapter-agnostic task, accepted-cap progress, upload, and stats ports
+  - `workstream/api/` for the workstream HTTP transport
+  - `subnets/sn13/workstream.py` for the SN13 task-contract adapter
+- Shared operator workstream implementation now includes:
+  - `workstream/sqlite_store.py` durable single-node task store
+  - `workstream/api/settings.py` validated Pydantic runtime configuration
+  - `workstream/api/auth.py` signed operator request verification
+  - `workstream/api/runtime.py` default SQLite/SN13 runtime wiring
+  - `workstream/models.py` strict task and submission models
+  - `subnets/sn13/api_adapter.py` generic submission envelope -> SN13 intake adapter
+- Official personal-operator instructions are published under `docs/skills/jarvis-workstream/`.
+- `.agents/skills/` is internal-only and contains QA/test automation, not the external workstream operator package.
+- Project-local QA automation now includes:
+  - `.agents/skills/jarvis-test-runner/` for lint/test/integration execution
+  - `.agents/skills/jarvis-qa-review/` for architecture/economics/durability/docs review
+- Admins can serve the workstream HTTP boundary through `jarvis-miner workstream serve`.
+- Admins can inspect workstream/runtime state through `jarvis-miner workstream status` and `jarvis-miner workstream tasks`.
+- Admins can publish planned SN13 tasks through `jarvis-miner sn13 plan publish`.
+- Admins can run automated DD refresh and economics-gated publication through `jarvis-miner sn13 scheduler run`.
+- Mainnet deployment files now exist:
+  - `Dockerfile`
+  - `compose.yaml`
+  - `deploy/jarvis.mainnet.env`
+  - `deploy/monitor.mainnet.yaml`
+  - `docs/JARVIS_MAINNET_READINESS.md`
+  - `scripts/run_sn13_listener.sh`
+- SN13 listener operations now include:
+  - `jarvis-miner sn13 listener status`
+  - `jarvis-miner sn13 listener verify`
+  - readiness warnings for missing live capture evidence
+  - optional `sn13-listener` compose profile for deployment wiring
+- Published SN13 tasks are open to all operators through the API; operators compete by submitting valid records until accepted-cap or expiry closes the task.
+- Workstream tasks now expose accepted progress instead of reservation state.
+- Planner-level economics refusal is now enforced before SN13 task publication.
+- Next active SN13 work is Jarvis archive upload, task visibility by capability, persistent accounting ledger, API edge rate limits, live validator capture verification, and deployment/supervisor wiring for the committed listener runtime.
 
 ## Blockers
 
-- _List blockers or write "None"._
+- No hard blocker at the repo level.
+- Production readiness still depends on real validator capture data and deployment verification of the committed listener runtime.
+- The configured wallet `sn13miner` is not registered and has `τ0` testnet balance; `sn13miner_nopw` is the registered testnet wallet currently in use.
 
 ## Constraints
 
-- _List important constraints or write "None"._
+- Jarvis must remain compatible with upstream SN13 expectations without blindly vendoring upstream runtime code.
+- SN13 should be built phase by phase; policy and quality layers must exist before deeper orchestration work.
+- The Flow context files are now being used as the canonical execution summary and should stay updated.
 
 ## Next Review
 
-- _Add the next date or milestone when this file should be refreshed._
+- Refresh after real validator captures confirm request version, timeout, and payload shape.

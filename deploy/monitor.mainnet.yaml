@@ -1,0 +1,23 @@
+global:
+  subtensor_network: ${JARVIS_MONITOR_SUBTENSOR_NETWORK}
+  data_dir: ${JARVIS_MONITOR_DATA_DIR}
+  price_source: ${JARVIS_MONITOR_PRICE_SOURCE}
+  wallet:
+    name: ${JARVIS_MONITOR_WALLET_NAME}
+    hotkey: ${JARVIS_MONITOR_WALLET_HOTKEY}
+    path: ${JARVIS_MONITOR_WALLET_PATH}
+
+subnets:
+  - netuid: 13
+    nickname: "Data Universe"
+    enabled: true
+    price_threshold_tao: ${JARVIS_MONITOR_PRICE_THRESHOLD_TAO}
+    max_spend_tao: ${JARVIS_MONITOR_MAX_SPEND_TAO}
+    auto_register: ${JARVIS_MONITOR_AUTO_REGISTER}
+    poll_interval_seconds: ${JARVIS_MONITOR_POLL_INTERVAL_SECONDS}
+    min_poll_interval_seconds: ${JARVIS_MONITOR_MIN_POLL_INTERVAL_SECONDS}
+    floor_detection: ${JARVIS_MONITOR_FLOOR_DETECTION}
+    adaptive_polling: ${JARVIS_MONITOR_ADAPTIVE_POLLING}
+    deregister: []
+    alerts:
+      channel: none
