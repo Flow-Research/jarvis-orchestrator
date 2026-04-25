@@ -35,6 +35,7 @@ class WorkstreamTaskStatus(str, Enum):
     OPEN = "open"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    EXPIRED = "expired"
 
 
 class WorkstreamTask(BaseModel):
@@ -70,12 +71,16 @@ class WorkstreamTask(BaseModel):
     @property
     def is_available(self) -> bool:
         """Return whether the task can accept more valid submissions now."""
-        now = utc_now()
         if self.status != WorkstreamTaskStatus.OPEN:
             return False
-        if self.expires_at is not None and self.expires_at <= now:
+        if self.is_expired():
             return False
         return self.accepted_count < self.acceptance_cap
+
+    def is_expired(self, now: datetime | None = None) -> bool:
+        """Return whether the task publication window has closed."""
+        current_time = ensure_utc(now or utc_now())
+        return self.expires_at is not None and self.expires_at <= current_time
 
     @property
     def remaining_capacity(self) -> int:

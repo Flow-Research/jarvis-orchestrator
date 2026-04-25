@@ -14,6 +14,7 @@ from workstream.models import (
     OperatorSubmissionRequest,
     OperatorTaskView,
     WorkstreamTask,
+    WorkstreamTaskStatus,
 )
 from workstream.ports import OperatorIntakePort, OperatorStatsPort, WorkstreamPort
 
@@ -47,7 +48,9 @@ def _dashboard_tasks(
 ) -> list[WorkstreamTask]:
     list_tasks = getattr(workstream, "list_tasks", None)
     if callable(list_tasks):
-        return list_tasks(limit=offset + limit)[offset : offset + limit]
+        return list_tasks(status=WorkstreamTaskStatus.OPEN, limit=offset + limit)[
+            offset : offset + limit
+        ]
     return workstream.list_available()[offset : offset + limit]
 
 
@@ -127,7 +130,8 @@ def _render_dashboard_html(
 ) -> str:
     auth_state = "required" if auth_enabled else "disabled"
     initial_count = len(tasks)
-    has_more = "true" if initial_count < summary["total_tasks"] else "false"
+    active_total = summary["open_tasks"]
+    has_more = "true" if initial_count < active_total else "false"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -580,14 +584,9 @@ def _render_dashboard_html(
       </section>
       <section class="summary">
         <article class="card">
-          <div class="label">Total Tasks</div>
-          <div class="value" data-summary-key="total_tasks">{summary["total_tasks"]}</div>
-          <div class="note">All durable workstream tasks</div>
-        </article>
-        <article class="card">
-          <div class="label">Open Tasks</div>
+          <div class="label">Active Tasks</div>
           <div class="value" data-summary-key="open_tasks">{summary["open_tasks"]}</div>
-          <div class="note">Tasks still accepting valid submissions</div>
+          <div class="note">Visible open workstream tasks</div>
         </article>
         <article class="card">
           <div class="label">Available Now</div>
@@ -600,9 +599,9 @@ def _render_dashboard_html(
           <div class="note">Tasks closed by cap or completion</div>
         </article>
         <article class="card">
-          <div class="label">Cancelled</div>
-          <div class="value" data-summary-key="cancelled_tasks">{summary["cancelled_tasks"]}</div>
-          <div class="note">Tasks closed without completion</div>
+          <div class="label">Expired</div>
+          <div class="value" data-summary-key="expired_tasks">{summary["expired_tasks"]}</div>
+          <div class="note">Publication windows closed</div>
         </article>
       </section>
     </section>
@@ -814,7 +813,7 @@ def create_workstream_app(
             "limit": limit,
             "loaded_count": next_offset,
             "next_offset": next_offset,
-            "has_more": next_offset < summary["total_tasks"],
+            "has_more": next_offset < summary["open_tasks"],
             "summary": summary,
             "task_html": _render_dashboard_task_cards(tasks),
         }

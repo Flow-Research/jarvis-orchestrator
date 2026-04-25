@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -22,6 +22,12 @@ def _task(task_id: str = "task_1") -> WorkstreamTask:
         },
         created_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
         acceptance_cap=2,
+    )
+
+
+def _expired_task(task_id: str = "task_expired") -> WorkstreamTask:
+    return _task(task_id).model_copy(
+        update={"expires_at": datetime.now(timezone.utc) - timedelta(minutes=1)}
     )
 
 
@@ -103,7 +109,52 @@ def test_sqlite_workstream_summary_and_list_tasks(tmp_path):
     assert summary["total_tasks"] == 2
     assert summary["open_tasks"] == 1
     assert summary["completed_tasks"] == 1
+    assert summary["expired_tasks"] == 0
     assert summary["available_now"] == 1
+
+
+def test_workstream_expires_open_tasks_without_showing_them_available():
+    workstream = InMemoryWorkstream()
+    workstream.publish(_expired_task())
+
+    expired_count = workstream.expire_open_tasks()
+    listed = workstream.list_tasks(status=WorkstreamTaskStatus.OPEN)
+    summary = workstream.summary(route_key="sn13")
+
+    assert expired_count == 1
+    assert listed == []
+    assert summary["open_tasks"] == 0
+    assert summary["expired_tasks"] == 1
+    assert workstream.get("task_expired").status == WorkstreamTaskStatus.EXPIRED
+
+
+def test_sqlite_workstream_expires_open_tasks_without_showing_them_available(tmp_path):
+    workstream = SQLiteWorkstream(tmp_path / "workstream.sqlite3")
+    workstream.publish(_expired_task())
+
+    expired_count = workstream.expire_open_tasks()
+    listed = workstream.list_tasks(status=WorkstreamTaskStatus.OPEN)
+    summary = workstream.summary(route_key="sn13")
+
+    assert expired_count == 1
+    assert listed == []
+    assert summary["open_tasks"] == 0
+    assert summary["expired_tasks"] == 1
+    assert workstream.get("task_expired").status == WorkstreamTaskStatus.EXPIRED
+
+
+def test_sqlite_workstream_republish_preserves_accepted_progress(tmp_path):
+    workstream = SQLiteWorkstream(tmp_path / "workstream.sqlite3")
+    original = _task("task_republish")
+    workstream.publish(original)
+    workstream.record_acceptance("task_republish", accepted_count=1)
+
+    republished = workstream.publish(
+        original.model_copy(update={"expires_at": datetime.now(timezone.utc) + timedelta(hours=1)})
+    )
+
+    assert republished.status == WorkstreamTaskStatus.OPEN
+    assert republished.accepted_count == 1
 
 
 def test_sqlite_workstream_migrates_legacy_lease_columns(tmp_path):

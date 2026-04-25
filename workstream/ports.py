@@ -35,6 +35,9 @@ class WorkstreamPort(Protocol):
     def complete(self, task_id: str) -> WorkstreamTask:
         """Mark a task complete."""
 
+    def expire_open_tasks(self) -> int:
+        """Mark expired open tasks as expired and return the number changed."""
+
 
 class OperatorIntakePort(Protocol):
     """Upload boundary enforced by internal intake adapters."""

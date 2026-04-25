@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -171,6 +172,38 @@ def test_workstream_dashboard_tasks_endpoint_paginates_runtime_cards():
     assert payload["summary"]["total_tasks"] == 3
     assert "task_1" in payload["task_html"]
     assert "task_0" not in payload["task_html"]
+
+
+def test_workstream_dashboard_tasks_endpoint_hides_expired_tasks():
+    client, workstream, _stats = _client()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_expired",
+            route_key="sn13",
+            source="X",
+            contract={"task_id": "task_expired", "source": "X", "label": "#old"},
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+    )
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_active",
+            route_key="sn13",
+            source="X",
+            contract={"task_id": "task_active", "source": "X", "label": "#now"},
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        )
+    )
+
+    response = client.get("/dashboard/tasks?offset=0&limit=25")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["open_tasks"] == 1
+    assert payload["summary"]["expired_tasks"] == 1
+    assert payload["has_more"] is False
+    assert "task_active" in payload["task_html"]
+    assert "task_expired" not in payload["task_html"]
 
 
 def test_workstream_api_accepts_submission_request_without_internal_route():

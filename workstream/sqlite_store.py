@@ -6,9 +6,10 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
-from .models import WorkstreamTask, WorkstreamTaskStatus
+from .models import WorkstreamTask, WorkstreamTaskStatus, ensure_utc, utc_now
 from .store import TaskNotFoundError, TaskUnavailableError
 
 
@@ -118,16 +119,47 @@ class SQLiteWorkstream:
 
     def publish(self, task: WorkstreamTask) -> WorkstreamTask:
         with self._connection() as connection:
-            self._upsert(connection, task)
+            self._expire_open_tasks(connection)
+            row = connection.execute(
+                "SELECT payload_json FROM workstream_tasks WHERE task_id = ?",
+                (task.task_id,),
+            ).fetchone()
+            updated = task
+            terminal_statuses = {
+                WorkstreamTaskStatus.COMPLETED,
+                WorkstreamTaskStatus.CANCELLED,
+            }
+            if row is not None:
+                existing = self._row_to_task(row)
+                if task.status in terminal_statuses:
+                    updated = task
+                elif existing.status in terminal_statuses:
+                    connection.commit()
+                    return existing
+                else:
+                    accepted_count = existing.accepted_count
+                    updated = task.model_copy(
+                        update={
+                            "accepted_count": accepted_count,
+                            "status": (
+                                WorkstreamTaskStatus.COMPLETED
+                                if accepted_count >= task.acceptance_cap
+                                else WorkstreamTaskStatus.OPEN
+                            ),
+                        }
+                    )
+            self._upsert(connection, updated)
             connection.commit()
-        return task
+        return updated
 
     def get(self, task_id: str) -> WorkstreamTask | None:
         with self._connection() as connection:
+            self._expire_open_tasks(connection)
             row = connection.execute(
                 "SELECT payload_json FROM workstream_tasks WHERE task_id = ?",
                 (task_id,),
             ).fetchone()
+            connection.commit()
         return self._row_to_task(row) if row else None
 
     def list_available(
@@ -136,6 +168,7 @@ class SQLiteWorkstream:
         route_key: str | None = None,
         source: str | None = None,
     ) -> list[WorkstreamTask]:
+        self.expire_open_tasks()
         where_parts: list[str] = []
         params: list[object] = []
         if route_key is not None:
@@ -167,6 +200,7 @@ class SQLiteWorkstream:
         source: str | None = None,
         limit: int | None = None,
     ) -> list[WorkstreamTask]:
+        self.expire_open_tasks()
         where_parts: list[str] = []
         params: list[object] = []
         if status is not None:
@@ -205,6 +239,7 @@ class SQLiteWorkstream:
         route_key: str | None = None,
         source: str | None = None,
     ) -> dict[str, int]:
+        self.expire_open_tasks()
         where_parts: list[str] = []
         params: list[object] = []
         if route_key is not None:
@@ -239,11 +274,19 @@ class SQLiteWorkstream:
             "open_tasks": counts[WorkstreamTaskStatus.OPEN.value],
             "completed_tasks": counts[WorkstreamTaskStatus.COMPLETED.value],
             "cancelled_tasks": counts[WorkstreamTaskStatus.CANCELLED.value],
+            "expired_tasks": counts[WorkstreamTaskStatus.EXPIRED.value],
             "available_now": available_now,
         }
 
+    def expire_open_tasks(self, *, now: datetime | None = None) -> int:
+        with self._connection() as connection:
+            expired = self._expire_open_tasks(connection, now=now)
+            connection.commit()
+        return expired
+
     def record_acceptance(self, task_id: str, *, accepted_count: int) -> WorkstreamTask:
         with self._connection() as connection:
+            self._expire_open_tasks(connection)
             row = connection.execute(
                 "SELECT payload_json FROM workstream_tasks WHERE task_id = ?",
                 (task_id,),
@@ -272,6 +315,7 @@ class SQLiteWorkstream:
 
     def complete(self, task_id: str) -> WorkstreamTask:
         with self._connection() as connection:
+            self._expire_open_tasks(connection)
             row = connection.execute(
                 "SELECT payload_json FROM workstream_tasks WHERE task_id = ?",
                 (task_id,),
@@ -287,6 +331,33 @@ class SQLiteWorkstream:
             self._upsert(connection, completed)
             connection.commit()
             return completed
+
+    def _expire_open_tasks(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        now: datetime | None = None,
+    ) -> int:
+        current_time = ensure_utc(now or utc_now())
+        rows = connection.execute(
+            """
+            SELECT payload_json
+            FROM workstream_tasks
+            WHERE status = ? AND expires_at IS NOT NULL
+            """,
+            (WorkstreamTaskStatus.OPEN.value,),
+        ).fetchall()
+        expired = 0
+        for row in rows:
+            task = self._row_to_task(row)
+            if not task.is_expired(current_time):
+                continue
+            self._upsert(
+                connection,
+                task.model_copy(update={"status": WorkstreamTaskStatus.EXPIRED}),
+            )
+            expired += 1
+        return expired
 
     def _upsert(self, connection: sqlite3.Connection, task: WorkstreamTask) -> None:
         connection.execute(
