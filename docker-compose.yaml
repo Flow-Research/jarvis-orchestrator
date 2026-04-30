@@ -14,7 +14,6 @@ services:
       - ./deploy/jarvis.mainnet.env
     environment:
       ARROW_USER_SIMD_LEVEL: NONE
-      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
     volumes:
       - ./data:/app/data
       - ./subnets/sn13/data:/app/subnets/sn13/data
@@ -40,7 +39,10 @@ services:
       - ./deploy/jarvis.mainnet.env
     environment:
       ARROW_USER_SIMD_LEVEL: NONE
-      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
+      GARDEN_BASE_URL: ${GARDEN_BASE_URL}
+      GARDEN_SERVICE_AUTH_TOKEN: ${GARDEN_SERVICE_AUTH_TOKEN:-}
+      GARDEN_AUTH_TIMEOUT_SECONDS: ${GARDEN_AUTH_TIMEOUT_SECONDS:-5}
+      GARDEN_REQUIRE_ACTIVE_SESSION: ${GARDEN_REQUIRE_ACTIVE_SESSION:-1}
     ports:
       - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
     volumes:

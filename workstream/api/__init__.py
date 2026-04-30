@@ -1,4 +1,4 @@
-"""FastAPI transport for the Jarvis workstream boundary."""
+"""FastAPI transport for the Flow Workstream boundary."""
 
 from .app import create_workstream_app
 

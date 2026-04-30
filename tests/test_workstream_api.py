@@ -1,12 +1,11 @@
 import json
-import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 
 from workstream.api import create_workstream_app
-from workstream.api.auth import HMACOperatorAuthenticator, sign_operator_request
+from workstream.api.auth import GardenOperatorAuthenticator
 from workstream.api.runtime import create_default_app, runtime_configuration
 from workstream.api.settings import load_workstream_api_settings
 from workstream.models import (
@@ -55,28 +54,45 @@ def _client_with_intake() -> tuple[
     return TestClient(app), workstream, stats, intake
 
 
-def _signed_headers(
-    *,
-    secret: str,
-    operator_id: str,
-    method: str,
-    path_with_query: str,
-    body: bytes = b"",
-    nonce: str = "nonce_1",
-) -> dict[str, str]:
-    timestamp = int(time.time())
+async def _fake_garden_post_json(
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, object],
+    timeout: float,
+) -> dict[str, object]:
+    assert url == "http://garden.test/api/internal/auth/verify"
+    assert headers["authorization"] == "Bearer service-token"
+    assert timeout == 5.0
+    user_id = str(payload.get("user_id") or "")
+    if not user_id:
+        return {"ok": False}
     return {
-        "x-jarvis-operator": operator_id,
-        "x-jarvis-timestamp": str(timestamp),
-        "x-jarvis-nonce": nonce,
-        "x-jarvis-signature": sign_operator_request(
-            secret=secret,
-            method=method,
-            path_with_query=path_with_query,
-            body=body,
-            timestamp=timestamp,
-            nonce=nonce,
-        ),
+        "ok": True,
+        "verification_method": "user_id",
+        "user": {
+            "id": user_id,
+            "email": f"{user_id}@example.com",
+            "name": user_id,
+        },
+        "session": None,
+        "personal_workspace": {
+            "id": "workspace_1",
+        },
+    }
+
+
+def _garden_authenticator() -> GardenOperatorAuthenticator:
+    return GardenOperatorAuthenticator(
+        service_auth_token="service-token",
+        verify_url="http://garden.test/api/internal/auth/verify",
+        post_json=_fake_garden_post_json,
+    )
+
+
+def _garden_headers(user_id: str = "garden_user_1") -> dict[str, str]:
+    return {
+        "x-garden-user-id": user_id,
+        "x-garden-workspace-id": "workspace_1",
     }
 
 
@@ -135,7 +151,7 @@ def test_workstream_dashboard_renders_human_runtime_view():
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Workstream Runtime" in response.text
+    assert "Flow Workstream" in response.text
     assert "task_1" in response.text
     assert "#bittensor" in response.text
     assert "Auth" in response.text
@@ -356,10 +372,10 @@ def test_workstream_api_returns_operator_stats():
     assert response.json()["estimated_reward_units"] == 7.5
 
 
-def test_workstream_api_requires_valid_signature_when_authenticator_is_configured():
+def test_workstream_api_requires_valid_garden_identity_when_authenticator_is_configured():
     workstream = InMemoryWorkstream()
     stats = InMemoryOperatorStats()
-    authenticator = HMACOperatorAuthenticator(secrets={"operator_1": "secret"})
+    authenticator = _garden_authenticator()
     app = create_workstream_app(
         workstream=workstream,
         intake=FakeIntake(),
@@ -368,25 +384,17 @@ def test_workstream_api_requires_valid_signature_when_authenticator_is_configure
     )
     client = TestClient(app)
 
-    unsigned = client.get("/v1/tasks")
-    signed = client.get(
-        "/v1/tasks",
-        headers=_signed_headers(
-            secret="secret",
-            operator_id="operator_1",
-            method="GET",
-            path_with_query="/v1/tasks",
-        ),
-    )
+    unauthenticated = client.get("/v1/tasks")
+    garden_verified = client.get("/v1/tasks", headers=_garden_headers())
 
-    assert unsigned.status_code == 401
-    assert signed.status_code == 200
+    assert unauthenticated.status_code == 401
+    assert garden_verified.status_code == 200
 
 
 def test_workstream_dashboard_shows_auth_required_when_authenticator_is_configured():
     workstream = InMemoryWorkstream()
     stats = InMemoryOperatorStats()
-    authenticator = HMACOperatorAuthenticator(secrets={"operator_1": "secret"})
+    authenticator = _garden_authenticator()
     app = create_workstream_app(
         workstream=workstream,
         intake=FakeIntake(),
@@ -401,10 +409,10 @@ def test_workstream_dashboard_shows_auth_required_when_authenticator_is_configur
     assert "required" in response.text
 
 
-def test_workstream_api_rejects_signed_operator_mismatch():
+def test_workstream_api_rejects_garden_operator_mismatch():
     workstream = InMemoryWorkstream()
     stats = InMemoryOperatorStats()
-    authenticator = HMACOperatorAuthenticator(secrets={"operator_1": "secret"})
+    authenticator = _garden_authenticator()
     app = create_workstream_app(
         workstream=workstream,
         intake=FakeIntake(),
@@ -431,17 +439,52 @@ def test_workstream_api_rejects_signed_operator_mismatch():
         content=body,
         headers={
             "content-type": "application/json",
-            **_signed_headers(
-                secret="secret",
-                operator_id="operator_1",
-                method="POST",
-                path_with_query="/v1/submissions",
-                body=body,
-            ),
+            **_garden_headers("garden_user_1"),
         },
     )
 
     assert response.status_code == 403
+
+
+def test_workstream_api_derives_submission_operator_from_garden_identity():
+    workstream = InMemoryWorkstream()
+    stats = InMemoryOperatorStats()
+    intake = FakeIntake()
+    workstream.publish(
+        WorkstreamTask(
+            task_id="task_1",
+            route_key="sn13",
+            source="X",
+            contract={"task_id": "task_1", "source": "X"},
+        )
+    )
+    authenticator = _garden_authenticator()
+    app = create_workstream_app(
+        workstream=workstream,
+        intake=intake,
+        stats=stats,
+        authenticator=authenticator.authenticate,
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/submissions",
+        json={
+            "task_id": "task_1",
+            "records": [
+                {
+                    "uri": "https://x.com/example/status/1",
+                    "source_created_at": "2026-04-22T10:02:00+00:00",
+                    "content": {"text": "valid shape"},
+                }
+            ],
+        },
+        headers=_garden_headers("garden_user_1"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["operator_id"] == "garden_user_1"
+    assert intake.submitted[0].operator_id == "garden_user_1"
 
 
 def test_default_workstream_api_runtime_wires_sqlite_and_sn13(tmp_path):
@@ -470,53 +513,52 @@ def test_default_workstream_api_runtime_requires_auth_by_default(tmp_path):
         )
 
 
-def test_workstream_api_settings_parse_host_port_and_operator_map():
+def test_workstream_api_settings_parse_host_port_and_garden_auth():
     settings = load_workstream_api_settings(
         {
             "JARVIS_WORKSTREAM_HOST": "0.0.0.0",
             "JARVIS_WORKSTREAM_PORT": "9898",
             "JARVIS_WORKSTREAM_DB_PATH": "data/custom-workstream.sqlite3",
             "JARVIS_SN13_DB_PATH": "subnets/sn13/data/custom-sn13.sqlite3",
-            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": (
-                '{"operator_1":"secret1","operator_2":"secret2"}'
-            ),
-            "JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS": "120",
+            "GARDEN_BASE_URL": "http://localhost:3000/",
+            "GARDEN_SERVICE_AUTH_TOKEN": "service-token",
+            "GARDEN_AUTH_TIMEOUT_SECONDS": "7",
         }
     )
 
     assert settings.host == "0.0.0.0"
     assert settings.port == 9898
-    assert settings.configured_operator_count == 2
-    assert settings.configured_operator_ids == ["operator_1", "operator_2"]
-    assert settings.max_clock_skew_seconds == 120
+    assert settings.garden_base_url == "http://localhost:3000"
+    assert settings.garden_auth_verify_url == "http://localhost:3000/api/internal/auth/verify"
+    assert settings.garden_service_auth_token == "service-token"
+    assert settings.garden_auth_timeout_seconds == 7
 
 
-def test_workstream_api_settings_parse_operator_map_from_file(tmp_path):
-    secrets_path = tmp_path / "operators.json"
-    secrets_path.write_text('{"operator_01":"secret1","operator_02":"secret2"}\n')
-
+def test_workstream_api_settings_can_use_garden_service_token_alias():
     settings = load_workstream_api_settings(
         {
-            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE": str(secrets_path),
+            "GARDEN_BASE_URL": "https://garden.example",
+            "GARDEN_SERVICE_AUTH_TOKEN": "service-token",
         }
     )
 
-    assert settings.configured_operator_count == 2
-    assert settings.configured_operator_ids == ["operator_01", "operator_02"]
+    assert settings.garden_auth_configured is True
 
 
-def test_runtime_configuration_reports_operator_ids_and_host_port():
+def test_runtime_configuration_reports_garden_auth_and_host_port():
     config = runtime_configuration(
         {
             "JARVIS_WORKSTREAM_HOST": "0.0.0.0",
             "JARVIS_WORKSTREAM_PORT": "9898",
-            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": (
-                '{"operator_1":"secret1","operator_2":"secret2"}'
-            ),
+            "GARDEN_BASE_URL": "https://garden.example",
+            "GARDEN_SERVICE_AUTH_TOKEN": "service-token",
         }
     )
 
     assert config["host"] == "0.0.0.0"
     assert config["port"] == 9898
-    assert config["configured_operator_count"] == 2
-    assert config["configured_operator_ids"] == ["operator_1", "operator_2"]
+    assert config["auth_provider"] == "garden"
+    assert config["garden_base_url"] == "https://garden.example"
+    assert config["garden_auth_verify_url"] == (
+        "https://garden.example/api/internal/auth/verify"
+    )

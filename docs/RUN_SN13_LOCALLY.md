@@ -4,9 +4,9 @@ Last updated: 2026-04-23
 
 ## What Works Today
 
-This repo already supports the current Jarvis operator flow:
+This repo already supports the current Flow Workstream operator flow:
 
-1. Jarvis publishes SN13 tasks into the durable workstream
+1. Flow Workstream receives SN13 tasks from Jarvis into the durable workstream
 2. personal operators discover tasks through the workstream API
 3. personal operators submit records through the workstream API
 4. SN13 intake validates, rejects, deduplicates, and stores accepted data in canonical SQLite
@@ -43,9 +43,9 @@ Jarvis admin uses:
 Personal operators use:
 
 - the workstream HTTP API
-- the published operator skill at `docs/skills/jarvis-workstream/SKILL.md`
+- the published operator skill at `docs/skills/flow-workstream/SKILL.md`
 
-Personal operators do not use the Jarvis admin CLI.
+Personal operators do not use the internal admin CLI.
 
 ## Option A: Company Tester Mode With Docker Compose
 
@@ -53,7 +53,7 @@ This is the default local deployment mode for internal testers.
 
 It runs:
 
-- `workstream-api`: dashboard and signed Workstream API
+- `workstream-api`: dashboard and Garden-authenticated Workstream API
 - `registration-monitor`: burn-cost and registration visibility, with auto-register disabled
 - `sn13-scheduler`: real Gravity/DD refresh and task publication loop
 
@@ -67,28 +67,21 @@ The local operator flow is:
 real Gravity/DD -> scheduler -> durable workstream -> Workstream API -> SN13 intake -> canonical SQLite
 ```
 
-### 1. Generate Tester Credentials
+### 1. Configure Garden Auth
 
-Generate the persistent tester credential pack:
+Workstream does not generate personal-operator auth material. It trusts Garden identity after verifying it through Garden's internal auth endpoint.
 
 ```bash
-python3 scripts/generate_workstream_operator_credentials.py \
-  --count 20 \
-  --prefix company_tester \
-  --base-url http://127.0.0.1:8787
+export GARDEN_BASE_URL=http://localhost:3000
+export GARDEN_SERVICE_AUTH_TOKEN='<copy from Garden apps/web/.dev.vars>'
 ```
 
-This writes stable local files:
+For Docker local runs, put the same values in `.env` so Compose can pass them into `workstream-api`.
 
 ```text
-data/workstream/tester-pack/operators.server-operator-secrets.json
-data/workstream/tester-pack/operators.tester-handoff.json
-data/workstream/tester-pack/operators.operators/company_tester_01.json
-...
-data/workstream/tester-pack/operators.operators/company_tester_20.json
+GARDEN_BASE_URL=<garden-base-url-reachable-from-the-workstream-container>
+GARDEN_SERVICE_AUTH_TOKEN=<copy from Garden apps/web/.dev.vars>
 ```
-
-The files are intentionally under `data/`, which is gitignored. They are local runtime secrets, not repo files.
 
 ### 2. Start Tester Mode
 
@@ -106,8 +99,7 @@ Check status:
 ```bash
 docker compose -f docker-compose.local.yaml ps
 curl http://127.0.0.1:8787/health
-JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE=$PWD/data/workstream/tester-pack/operators.server-operator-secrets.json \
-  uv run jarvis-miner workstream status --json
+uv run jarvis-miner workstream status --json
 ```
 
 Open the dashboard:
@@ -116,32 +108,15 @@ Open the dashboard:
 http://127.0.0.1:8787/
 ```
 
-### 3. Optional HTTPS With Ngrok
+### 3. Optional HTTPS With Dev Tunnel
 
 If external testers need HTTPS:
 
 ```bash
-$HOME/.local/bin/ngrok http 8787
+devtunnel host -p 8787 --allow-anonymous
 ```
 
-Use the generated HTTPS URL to regenerate the same persistent credential files:
-
-```bash
-python3 scripts/generate_workstream_operator_credentials.py \
-  --count 20 \
-  --prefix company_tester \
-  --base-url https://YOUR-NGROK-URL
-
-docker compose -f docker-compose.local.yaml restart workstream-api
-```
-
-Give each tester exactly one file from:
-
-```text
-data/workstream/tester-pack/operators.operators/
-```
-
-Do not give testers `operators.server-operator-secrets.json`.
+Use the generated HTTPS URL as `WORKSTREAM_API_BASE_URL` in Garden or the operator runtime. Do not create Workstream tester secrets.
 
 ### 4. Scheduler Behavior
 
@@ -234,8 +209,9 @@ $EDITOR deploy/jarvis.mainnet.env
 Set at minimum:
 
 ```bash
-JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON={"operator_1":"change-me"}
 JARVIS_WORKSTREAM_REQUIRE_AUTH=1
+GARDEN_BASE_URL=http://localhost:3000
+GARDEN_SERVICE_AUTH_TOKEN=<copy from Garden apps/web/.dev.vars>
 JARVIS_MONITOR_AUTO_REGISTER=0
 ```
 
@@ -280,14 +256,8 @@ uv run jarvis-miner sn13 plan publish \
 Authenticated local run:
 
 ```bash
-export JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"change-me"}'
-uv run jarvis-miner workstream serve --host 127.0.0.1 --port 8787
-```
-
-Unsigned local-only development:
-
-```bash
-export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
+export GARDEN_BASE_URL=http://localhost:3000
+export GARDEN_SERVICE_AUTH_TOKEN='<copy from Garden apps/web/.dev.vars>'
 uv run jarvis-miner workstream serve --host 127.0.0.1 --port 8787
 ```
 
@@ -337,14 +307,12 @@ uv run jarvis-miner sn13 readiness --json
 An external operator agent needs only these values:
 
 ```bash
-JARVIS_WORKSTREAM_API_BASE_URL=http://127.0.0.1:8787
-JARVIS_OPERATOR_ID=operator_1
-JARVIS_OPERATOR_SECRET=change-me
+WORKSTREAM_API_BASE_URL=http://127.0.0.1:8787
 ```
 
 Then give the operator the published skill:
 
-- `docs/skills/jarvis-workstream/SKILL.md`
+- `docs/skills/flow-workstream/SKILL.md`
 
 That skill tells the operator how to:
 
@@ -352,17 +320,19 @@ That skill tells the operator how to:
 - list `GET /v1/tasks`
 - inspect `GET /v1/tasks/{task_id}`
 - submit `POST /v1/submissions`
-- inspect `GET /v1/operators/{operator_id}/stats`
+- inspect `GET /v1/operators/{garden_user_id}/stats`
+
+Garden supplies `x-garden-user-id`, `x-garden-workspace-id`, and optionally `x-garden-session-token` to authenticated personal operators. Workstream verifies those headers against Garden before serving `/v1/*`.
 
 ## Current Meaning Of End To End
 
 Today, "end to end" means:
 
 ```text
-Jarvis publishes work
+Flow Workstream publishes work
 -> operator agent sees the task
 -> operator agent submits records
--> Jarvis intake accepts or rejects them
+-> Flow Workstream intake accepts or rejects them
 -> accepted records land in canonical SQLite
 ```
 
@@ -378,11 +348,11 @@ accepted records are already exported and uploaded upstream
 
 If you want to show this to another person right now, use this exact sequence:
 
-1. generate tester credentials with `scripts/generate_workstream_operator_credentials.py`
-2. start `workstream-api`, `registration-monitor`, and `sn13-scheduler`
-3. confirm the scheduler published real Gravity tasks
-4. give each tester one JSON file from `data/workstream/tester-pack/operators.operators/`
-5. give testers the published workstream skill
-6. let each operator call the API and submit records
+1. start Garden and sign in as a personal operator user
+2. set `GARDEN_BASE_URL` and `GARDEN_SERVICE_AUTH_TOKEN` for Workstream
+3. start `workstream-api`, `registration-monitor`, and `sn13-scheduler`
+4. confirm the scheduler published real Gravity tasks
+5. give Garden the Workstream base URL and the published workstream skill
+6. let the Garden personal operator call the API and submit records with Garden identity headers
 7. inspect `uv run jarvis-miner workstream status --json`
 8. inspect operator quality stats through the API

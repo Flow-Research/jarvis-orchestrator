@@ -27,6 +27,7 @@ services:
   workstream-api:
     image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
     working_dir: ${PWD}
+    network_mode: host
     entrypoint:
       - ${PWD}/.venv/bin/jarvis-miner
     command:
@@ -42,10 +43,11 @@ services:
       ARROW_USER_SIMD_LEVEL: NONE
       JARVIS_WORKSTREAM_DB_PATH: ${PWD}/data/workstream.sqlite3
       JARVIS_SN13_DB_PATH: ${PWD}/subnets/sn13/data/sn13.sqlite3
-      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
+      GARDEN_BASE_URL: ${GARDEN_BASE_URL}
+      GARDEN_SERVICE_AUTH_TOKEN: ${GARDEN_SERVICE_AUTH_TOKEN:-}
+      GARDEN_AUTH_TIMEOUT_SECONDS: ${GARDEN_AUTH_TIMEOUT_SECONDS:-5}
+      GARDEN_REQUIRE_ACTIVE_SESSION: ${GARDEN_REQUIRE_ACTIVE_SESSION:-0}
       PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    ports:
-      - "${JARVIS_WORKSTREAM_BIND_PORT:-8787}:8787"
     volumes:
       - ${PWD}:${PWD}
       - ${HOME}/.local/share/uv/python:${HOME}/.local/share/uv/python:ro
@@ -81,7 +83,6 @@ services:
       JARVIS_SN13_TARGET_ITEMS: ${JARVIS_SN13_TARGET_ITEMS:-5}
       JARVIS_SN13_RECENT_BUCKETS: ${JARVIS_SN13_RECENT_BUCKETS:-1}
       JARVIS_SN13_MAX_TASKS: ${JARVIS_SN13_MAX_TASKS:-500}
-      JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE: ${JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE:-data/workstream/tester-pack/operators.server-operator-secrets.json}
       PATH: ${PWD}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - ${PWD}:${PWD}

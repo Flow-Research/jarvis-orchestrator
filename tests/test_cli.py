@@ -227,10 +227,8 @@ class TestHelp:
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ):
         for key in (
-            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON",
-            "JARVIS_WORKSTREAM_OPERATOR_SECRETS_FILE",
-            "JARVIS_OPERATOR_ID",
-            "JARVIS_OPERATOR_SECRET",
+            "GARDEN_BASE_URL",
+            "GARDEN_SERVICE_AUTH_TOKEN",
         ):
             monkeypatch.delenv(key, raising=False)
 
@@ -238,7 +236,7 @@ class TestHelp:
 
         assert result.exit_code == 1
         assert "workstream api auth is required" in result.output.lower()
-        assert "jarvis_workstream_operator_secrets_json" in result.output.lower()
+        assert "garden_service_auth_token" in result.output.lower()
 
 
 # ── Validate command ─────────────────────────────────────────────────────
@@ -1322,14 +1320,16 @@ class TestSN13Commands:
                 "--json-output",
             ],
             env={
-                "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": '{"operator_1":"secret"}',
+                "GARDEN_BASE_URL": "http://localhost:3000",
+                "GARDEN_SERVICE_AUTH_TOKEN": "service-token",
             },
         )
 
         assert result.exit_code == 0
         payload = json.loads(result.output)
         assert payload["auth_required"] is True
-        assert payload["configured_operator_count"] == 1
+        assert payload["auth_provider"] == "garden"
+        assert payload["garden_base_url"] == "http://localhost:3000"
         assert payload["total_tasks"] == 2
         assert payload["open_tasks"] == 1
         assert payload["completed_tasks"] == 1
@@ -1348,7 +1348,8 @@ class TestSN13Commands:
                 "--json",
             ],
             env={
-                "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON": '{"operator_1":"secret"}',
+                "GARDEN_BASE_URL": "http://localhost:3000",
+                "GARDEN_SERVICE_AUTH_TOKEN": "service-token",
             },
         )
 

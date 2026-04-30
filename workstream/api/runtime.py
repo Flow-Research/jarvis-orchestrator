@@ -1,4 +1,4 @@
-"""Default runtime wiring for the Jarvis workstream API."""
+"""Default runtime wiring for the Flow Workstream API."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from subnets.sn13.tasks import SN13OperatorRuntime
 from workstream.sqlite_store import SQLiteWorkstream
 
 from .app import create_workstream_app
-from .auth import HMACOperatorAuthenticator
+from .auth import GardenOperatorAuthenticator
 from .settings import WorkstreamAPISettings, load_workstream_api_settings
 
 
@@ -37,15 +37,18 @@ def runtime_configuration(env: dict[str, str] | None = None) -> dict[str, object
         "workstream_db_path": str(settings.workstream_db_path),
         "sn13_db_path": str(settings.sn13_db_path),
         "auth_required": settings.require_auth,
-        "configured_operator_count": settings.configured_operator_count,
-        "configured_operator_ids": settings.configured_operator_ids,
-        "max_clock_skew_seconds": settings.max_clock_skew_seconds,
+        "auth_provider": settings.auth_provider,
+        "garden_auth_configured": settings.garden_auth_configured,
+        "garden_base_url": settings.garden_base_url or "-",
+        "garden_auth_verify_url": settings.garden_auth_verify_url or "-",
+        "garden_require_active_session": settings.garden_require_active_session,
+        "garden_auth_timeout_seconds": settings.garden_auth_timeout_seconds,
         "config_error": config_error,
     }
 
 
 def create_default_app(env: dict[str, str] | None = None) -> FastAPI:
-    """Create the default single-node Jarvis workstream API app from environment."""
+    """Create the default single-node Flow Workstream API app from environment."""
     settings = load_workstream_api_settings(env or os.environ)
     workstream = SQLiteWorkstream(settings.workstream_db_path)
     sn13_storage = SQLiteStorage(settings.sn13_db_path)
@@ -62,10 +65,12 @@ def create_default_app(env: dict[str, str] | None = None) -> FastAPI:
 
 def _authenticator_from_settings(
     settings: WorkstreamAPISettings,
-) -> HMACOperatorAuthenticator | None:
+) -> GardenOperatorAuthenticator | None:
     if settings.require_auth:
-        return HMACOperatorAuthenticator(
-            secrets=settings.operator_secrets,
-            max_clock_skew_seconds=settings.max_clock_skew_seconds,
+        return GardenOperatorAuthenticator(
+            service_auth_token=settings.garden_service_auth_token or "",
+            verify_url=settings.garden_auth_verify_url or "",
+            request_timeout_seconds=settings.garden_auth_timeout_seconds,
+            require_active_session=settings.garden_require_active_session,
         )
     return None

@@ -2052,7 +2052,7 @@ def workstream_serve(host: str | None, port: int | None, reload: bool):
         Panel.fit(
             "\n".join(
                 [
-                    "Jarvis Workstream",
+                    "Flow Workstream",
                     f"Host: {resolved_host}",
                     f"Port: {resolved_port}",
                     "Store: SQLite",
@@ -2131,7 +2131,7 @@ def workstream_status(
         click.echo(json.dumps(payload, indent=2))
         return
 
-    table = Table(title="Jarvis Workstream Status")
+    table = Table(title="Flow Workstream Status")
     table.add_column("Fact", style="cyan")
     table.add_column("Value", style="green")
     table.add_row("Workstream DB", str(resolved_workstream_path))
@@ -2141,9 +2141,15 @@ def workstream_status(
     table.add_row("Host", str(config["host"]))
     table.add_row("Port", str(config["port"]))
     table.add_row("Auth required", "yes" if config["auth_required"] else "no")
-    table.add_row("Configured operators", str(config["configured_operator_count"]))
-    table.add_row("Operator IDs", ", ".join(config["configured_operator_ids"]) or "-")
-    table.add_row("Clock skew", f"{config['max_clock_skew_seconds']}s")
+    table.add_row("Auth provider", str(config["auth_provider"]))
+    table.add_row("Garden auth configured", "yes" if config["garden_auth_configured"] else "no")
+    table.add_row("Garden base URL", str(config["garden_base_url"]))
+    table.add_row("Garden verify URL", str(config["garden_auth_verify_url"]))
+    table.add_row(
+        "Garden active session",
+        "required" if config["garden_require_active_session"] else "not required",
+    )
+    table.add_row("Garden auth timeout", f"{config['garden_auth_timeout_seconds']}s")
     table.add_row("Config error", str(config["config_error"] or "-"))
     table.add_row("Open tasks", str(payload["open_tasks"]))
     table.add_row("Completed tasks", str(payload["completed_tasks"]))
@@ -2205,7 +2211,7 @@ def workstream_tasks(
         click.echo(json.dumps(payload, indent=2))
         return
 
-    table = Table(title="Jarvis Workstream Tasks")
+    table = Table(title="Flow Workstream Tasks")
     table.add_column("Task", style="cyan")
     table.add_column("Route", style="green")
     table.add_column("Source", style="green")

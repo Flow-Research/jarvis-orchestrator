@@ -60,7 +60,7 @@ The current production-shape Jarvis stack has these always-on service roles:
 1. `registration-monitor`
    Uses `jarvis-miner monitor watch` for live SN13 registration pricing, threshold detection, and auto-register.
 2. `workstream-api`
-   Uses `jarvis-miner workstream serve` to expose the signed Workstream HTTP boundary.
+   Uses `jarvis-miner workstream serve` to expose the Garden-authenticated Workstream HTTP boundary.
 3. `sn13-scheduler`
    Uses `jarvis-miner sn13 scheduler run` to refresh Gravity/DD and publish economics-safe work.
 4. `jarvis-admin`
@@ -222,9 +222,8 @@ This section is separate from Jarvis-owned infrastructure. Personal operators ar
 
 Jarvis publishes these as operator prerequisites. They are not Jarvis server environment variables:
 
-- `JARVIS_WORKSTREAM_API_BASE_URL`
-- `JARVIS_OPERATOR_ID`
-- `JARVIS_OPERATOR_SECRET`
+- `WORKSTREAM_API_BASE_URL`
+- Garden-authenticated user/session context
 - a source access path accepted by the task contract
 - enough provider quota and proxy budget to finish before task expiry
 - UTC-safe timestamp handling

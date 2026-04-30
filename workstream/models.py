@@ -199,7 +199,7 @@ class OperatorSubmissionRequest(BaseModel):
 
     submission_id: str = Field(default_factory=lambda: f"opsub_{uuid4().hex}")
     task_id: str = Field(..., min_length=1)
-    operator_id: str = Field(..., min_length=1, max_length=128)
+    operator_id: str | None = Field(default=None, min_length=1, max_length=128)
     records: list[WorkstreamSubmissionRecord] = Field(..., min_length=1)
     submitted_at: datetime = Field(default_factory=utc_now)
 
@@ -208,12 +208,20 @@ class OperatorSubmissionRequest(BaseModel):
     def validate_submitted_at(cls, value: datetime) -> datetime:
         return require_aware_utc(value)
 
-    def to_internal_envelope(self, *, route_key: str) -> OperatorSubmissionEnvelope:
+    def to_internal_envelope(
+        self,
+        *,
+        route_key: str,
+        operator_id: str | None = None,
+    ) -> OperatorSubmissionEnvelope:
         """Attach internal routing before handing the upload to intake."""
+        resolved_operator_id = operator_id or self.operator_id
+        if not resolved_operator_id:
+            raise ValueError("operator_id is required when Workstream auth is disabled")
         return OperatorSubmissionEnvelope(
             submission_id=self.submission_id,
             task_id=self.task_id,
-            operator_id=self.operator_id,
+            operator_id=resolved_operator_id,
             route_key=route_key,
             records=self.records,
             submitted_at=self.submitted_at,

@@ -1,4 +1,4 @@
-"""Validate externally published Jarvis operator skills.
+"""Validate externally published Flow Workstream operator skills.
 
 The official workstream skill under ``docs/skills`` is shipped to personal
 operators, so CI validates it without depending on a developer-local Codex path.
@@ -11,22 +11,36 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS_ROOT = ROOT / "docs" / "skills"
+SKILL_ROOTS = (
+    ROOT / "docs" / "skills",
+    ROOT / "skills",
+)
 
 
 def main() -> int:
     errors: list[str] = []
-    if not SKILLS_ROOT.exists():
+    existing_roots = [root for root in SKILL_ROOTS if root.exists()]
+    if not existing_roots:
         print("No external skills found.")
         return 0
 
-    for skill_dir in sorted(path for path in SKILLS_ROOT.iterdir() if path.is_dir()):
-        skill_file = skill_dir / "SKILL.md"
-        if not skill_file.exists():
-            errors.append(f"{skill_dir.relative_to(ROOT)} is missing SKILL.md")
-            continue
-        text = skill_file.read_text(encoding="utf-8")
-        errors.extend(_validate_skill(skill_dir, text))
+    for skills_root in existing_roots:
+        for skill_dir in sorted(path for path in skills_root.iterdir() if path.is_dir()):
+            skill_file = skill_dir / "SKILL.md"
+            if not skill_file.exists():
+                errors.append(f"{skill_dir.relative_to(ROOT)} is missing SKILL.md")
+                continue
+            text = skill_file.read_text(encoding="utf-8")
+            errors.extend(_validate_skill(skill_dir, text))
+
+    docs_skill = ROOT / "docs" / "skills" / "flow-workstream" / "SKILL.md"
+    packaged_skill = ROOT / "skills" / "flow-workstream" / "SKILL.md"
+    if docs_skill.exists() and packaged_skill.exists():
+        if docs_skill.read_text(encoding="utf-8") != packaged_skill.read_text(encoding="utf-8"):
+            errors.append(
+                "docs/skills/flow-workstream/SKILL.md and "
+                "skills/flow-workstream/SKILL.md must stay identical"
+            )
 
     if errors:
         print("External skill validation failed:", file=sys.stderr)
@@ -50,9 +64,9 @@ def _validate_skill(skill_dir: Path, text: str) -> list[str]:
             errors.append(f"{rel}/SKILL.md frontmatter missing {field}")
 
     required_terms = [
-        "JARVIS_WORKSTREAM_API_BASE_URL",
-        "JARVIS_OPERATOR_ID",
-        "JARVIS_OPERATOR_SECRET",
+        "WORKSTREAM_API_BASE_URL",
+        "x-garden-user-id",
+        "x-garden-session-token",
         "GET /v1/tasks",
         "POST /v1/submissions",
         "Operator Minimum Requirements",
@@ -66,6 +80,9 @@ def _validate_skill(skill_dir: Path, text: str) -> list[str]:
         "jarvis-miner",
         "admin cli",
         "APIFY_API_TOKEN",
+        "FLOW_WORKSTREAM_API_BASE_URL",
+        "JARVIS_OPERATOR_SECRET",
+        "JARVIS_OPERATOR_ID",
         "JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON",
     ]
     lower_text = text.casefold()

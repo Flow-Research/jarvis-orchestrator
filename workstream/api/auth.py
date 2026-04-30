@@ -1,150 +1,150 @@
-"""Operator request signing for the Jarvis workstream API."""
+"""Garden-backed authentication for the Flow Workstream API."""
 
 from __future__ import annotations
 
-import hashlib
-import hmac
-import time
-from dataclasses import dataclass, field
-from typing import Protocol  # noqa: UP035
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
 
+import aiohttp
 from fastapi import Request
 
-OPERATOR_ID_HEADER = "x-jarvis-operator"
-TIMESTAMP_HEADER = "x-jarvis-timestamp"
-NONCE_HEADER = "x-jarvis-nonce"
-SIGNATURE_HEADER = "x-jarvis-signature"
-SIGNATURE_SCHEME = "JARVIS-OPERATOR-HMAC-SHA256"
+GARDEN_USER_ID_HEADER = "x-garden-user-id"
+GARDEN_WORKSPACE_ID_HEADER = "x-garden-workspace-id"
+GARDEN_SESSION_TOKEN_HEADER = "x-garden-session-token"
 
 
 class OperatorAuthError(Exception):
-    """Raised when an operator request is not authenticated."""
+    """Raised when a Workstream request is not authenticated by Garden."""
 
 
 @dataclass(frozen=True)
 class OperatorIdentity:
-    """Authenticated operator identity."""
+    """Authenticated personal-operator identity derived from Garden."""
 
     operator_id: str
+    garden_user_id: str
+    garden_workspace_id: str | None = None
+    email: str | None = None
+    name: str | None = None
 
 
-class NonceStore(Protocol):
-    """Replay-prevention store for signed operator requests."""
-
-    def use_nonce(self, operator_id: str, nonce: str, expires_at: int) -> bool:
-        """Return True if the nonce has not been used and is now reserved."""
-
-
-@dataclass
-class InMemoryNonceStore:
-    """Single-process nonce store for local and single-node deployments."""
-
-    _nonces: dict[tuple[str, str], int] = field(default_factory=dict)
-
-    def use_nonce(self, operator_id: str, nonce: str, expires_at: int) -> bool:
-        now = int(time.time())
-        self._nonces = {
-            key: expiry for key, expiry in self._nonces.items() if expiry >= now
-        }
-        key = (operator_id, nonce)
-        if key in self._nonces:
-            return False
-        self._nonces[key] = expires_at
-        return True
+GardenPostJSON = Callable[
+    [str, dict[str, str], dict[str, object], float],
+    Awaitable[dict[str, Any]],
+]
 
 
 @dataclass(frozen=True)
-class HMACOperatorAuthenticator:
-    """Authenticate workstream API calls with per-operator HMAC secrets."""
+class GardenOperatorAuthenticator:
+    """Authenticate Workstream calls by verifying Garden identity server-side."""
 
-    secrets: dict[str, str]
-    max_clock_skew_seconds: int = 300
-    nonce_store: NonceStore = field(default_factory=InMemoryNonceStore)
+    service_auth_token: str
+    verify_url: str
+    request_timeout_seconds: float = 5.0
+    require_active_session: bool = False
+    post_json: GardenPostJSON | None = None
 
     async def authenticate(self, request: Request) -> OperatorIdentity:
-        operator_id = _required_header(request, OPERATOR_ID_HEADER)
-        timestamp = _parse_timestamp(_required_header(request, TIMESTAMP_HEADER))
-        nonce = _required_header(request, NONCE_HEADER)
-        provided_signature = _normalize_signature(
-            _required_header(request, SIGNATURE_HEADER)
+        payload = self._verification_payload(request)
+        response = await self._post_verify(self.verify_url, payload)
+        if response.get("ok") is not True:
+            raise OperatorAuthError("garden auth verification failed")
+
+        user = response.get("user")
+        if not isinstance(user, dict):
+            raise OperatorAuthError("garden auth verification missing user")
+        garden_user_id = str(user.get("id") or "").strip()
+        if not garden_user_id:
+            raise OperatorAuthError("garden auth verification missing user id")
+
+        requested_user_id = request.headers.get(GARDEN_USER_ID_HEADER)
+        if requested_user_id and requested_user_id.strip() != garden_user_id:
+            raise OperatorAuthError("garden auth user mismatch")
+
+        personal_workspace = response.get("personal_workspace")
+        verified_workspace_id = None
+        if isinstance(personal_workspace, dict):
+            verified_workspace_id = str(personal_workspace.get("id") or "").strip() or None
+        requested_workspace_id = request.headers.get(GARDEN_WORKSPACE_ID_HEADER)
+        if (
+            requested_workspace_id
+            and verified_workspace_id
+            and requested_workspace_id.strip() != verified_workspace_id
+        ):
+            raise OperatorAuthError("garden auth workspace mismatch")
+
+        return OperatorIdentity(
+            operator_id=garden_user_id,
+            garden_user_id=garden_user_id,
+            garden_workspace_id=verified_workspace_id or _optional_header(
+                request, GARDEN_WORKSPACE_ID_HEADER
+            ),
+            email=_optional_user_text(user, "email"),
+            name=_optional_user_text(user, "name"),
         )
 
-        now = int(time.time())
-        if abs(now - timestamp) > self.max_clock_skew_seconds:
-            raise OperatorAuthError("operator signature timestamp outside allowed skew")
+    def _verification_payload(self, request: Request) -> dict[str, object]:
+        session_token = _optional_header(request, GARDEN_SESSION_TOKEN_HEADER)
+        if session_token:
+            return {
+                "session_token": session_token,
+                "require_active_session": True,
+            }
 
-        secret = self.secrets.get(operator_id)
-        if not secret:
-            raise OperatorAuthError("unknown operator")
+        user_id = _optional_header(request, GARDEN_USER_ID_HEADER)
+        if not user_id:
+            raise OperatorAuthError(
+                f"missing {GARDEN_USER_ID_HEADER} header or {GARDEN_SESSION_TOKEN_HEADER} header"
+            )
+        return {
+            "user_id": user_id,
+            "require_active_session": self.require_active_session,
+        }
 
-        body = await request.body()
-        expected = sign_operator_request(
-            secret=secret,
-            method=request.method,
-            path_with_query=_path_with_query(request),
-            body=body,
-            timestamp=timestamp,
-            nonce=nonce,
-        )
-        if not hmac.compare_digest(provided_signature, expected):
-            raise OperatorAuthError("operator signature mismatch")
+    async def _post_verify(self, verify_url: str, payload: dict[str, object]) -> dict[str, Any]:
+        headers = {
+            "authorization": f"Bearer {self.service_auth_token}",
+            "content-type": "application/json",
+        }
+        if self.post_json is not None:
+            return await self.post_json(
+                verify_url,
+                headers,
+                payload,
+                self.request_timeout_seconds,
+            )
 
-        expires_at = now + self.max_clock_skew_seconds
-        if not self.nonce_store.use_nonce(operator_id, nonce, expires_at):
-            raise OperatorAuthError("operator signature nonce replayed")
+        timeout = aiohttp.ClientTimeout(total=self.request_timeout_seconds)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(verify_url, json=payload, headers=headers) as response:
+                    if response.status >= 400:
+                        raise OperatorAuthError(
+                            f"garden auth verification returned HTTP {response.status}"
+                        )
+                    data = await response.json()
+        except OperatorAuthError:
+            raise
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            raise OperatorAuthError("garden auth verification request failed") from exc
 
-        return OperatorIdentity(operator_id=operator_id)
-
-
-def sign_operator_request(
-    *,
-    secret: str,
-    method: str,
-    path_with_query: str,
-    body: bytes,
-    timestamp: int,
-    nonce: str,
-) -> str:
-    """Return the hex HMAC signature for a workstream API request."""
-    body_hash = hashlib.sha256(body).hexdigest()
-    canonical = "\n".join(
-        (
-            SIGNATURE_SCHEME,
-            method.upper(),
-            path_with_query,
-            body_hash,
-            str(timestamp),
-            nonce,
-        )
-    )
-    return hmac.new(
-        secret.encode("utf-8"),
-        canonical.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+        if not isinstance(data, dict):
+            raise OperatorAuthError("garden auth verification returned invalid JSON")
+        return data
 
 
-def _required_header(request: Request, name: str) -> str:
+def _optional_header(request: Request, name: str) -> str | None:
     value = request.headers.get(name)
-    if not value:
-        raise OperatorAuthError(f"missing {name} header")
-    return value.strip()
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
 
 
-def _parse_timestamp(value: str) -> int:
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise OperatorAuthError("invalid operator signature timestamp") from exc
-
-
-def _normalize_signature(value: str) -> str:
-    prefix = "sha256="
-    return value.removeprefix(prefix).strip().lower()
-
-
-def _path_with_query(request: Request) -> str:
-    query = request.url.query
-    if query:
-        return f"{request.url.path}?{query}"
-    return request.url.path
+def _optional_user_text(user: dict[str, Any], key: str) -> str | None:
+    value = user.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

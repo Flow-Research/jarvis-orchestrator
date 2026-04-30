@@ -59,11 +59,9 @@ jarvis-miner monitor watch
 jarvis-miner deregister-check
 
 # Admin starts the workstream HTTP boundary
-JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
+GARDEN_BASE_URL=http://localhost:3000 \
+GARDEN_SERVICE_AUTH_TOKEN='<garden-service-token>' \
   jarvis-miner workstream serve
-
-# For local-only unsigned development
-export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
 
 # Admin publishes planned SN13 work into the durable workstream
 jarvis-miner sn13 plan publish --sample-dd --json-output \
@@ -122,7 +120,8 @@ Not end-to-end complete yet:
 
 - [Engineering Gates](docs/ENGINEERING_GATES.md)
 - [Workstream Architecture](docs/WORKSTREAM_ARCHITECTURE.md)
-- [Official Workstream Operator Skill](docs/skills/jarvis-workstream/SKILL.md)
+- [Official Workstream Operator Skill](docs/skills/flow-workstream/SKILL.md)
+- [Marketplace skill package](skills/flow-workstream/SKILL.md)
 - [CLI Admin Guide](cli/README.md)
 - [Miner Tools](miner_tools/README.md)
 - [SN13 Architecture](subnets/sn13/docs/ARCHITECTURE.md)
@@ -138,7 +137,13 @@ Current internal skills:
 - `jarvis-test-runner`: lint, focused tests, coverage gate, and integration gate execution
 - `jarvis-qa-review`: architecture, economics, durability, and docs review
 
-The external personal-operator instructions are published as [Official Workstream Operator Skill](docs/skills/jarvis-workstream/SKILL.md), not as an internal project skill.
+The external personal-operator instructions are published as [Official Workstream Operator Skill](docs/skills/flow-workstream/SKILL.md). The same file is mirrored under [skills/flow-workstream](skills/flow-workstream/SKILL.md) for skills.sh-style marketplace installation.
+
+Install from the repository with:
+
+```bash
+npx skills add Flow-Research/jarvis-orchestrator --skill flow-workstream
+```
 
 ## Testing
 

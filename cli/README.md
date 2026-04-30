@@ -75,14 +75,9 @@ The preferred modern form is `jarvis-miner monitor ...`, but the aliases are kep
 Personal operators do not run these commands. Jarvis administrators run them to expose and inspect the workstream HTTP boundary that operators call.
 
 ```bash
-JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
+GARDEN_BASE_URL=http://localhost:3000 \
+GARDEN_SERVICE_AUTH_TOKEN='<garden-service-token>' \
 jarvis-miner workstream serve
-```
-
-Auth is required by default. For local-only unsigned development, set:
-
-```bash
-export JARVIS_WORKSTREAM_REQUIRE_AUTH=0
 ```
 
 Default stores:
@@ -92,14 +87,16 @@ JARVIS_WORKSTREAM_DB_PATH=data/workstream.sqlite3
 JARVIS_SN13_DB_PATH=subnets/sn13/data/sn13.sqlite3
 ```
 
-`JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON` is the server-side allowlist of personal operators that may call the workstream API. This is not a scraper credential and not a Bittensor wallet.
+Workstream does not mint or preload personal-operator secrets. It verifies Garden user/session identity by calling `{GARDEN_BASE_URL}/api/internal/auth/verify` with `GARDEN_SERVICE_AUTH_TOKEN`.
 
 Runtime network/auth controls:
 
 ```text
 JARVIS_WORKSTREAM_HOST=127.0.0.1
 JARVIS_WORKSTREAM_PORT=8787
-JARVIS_WORKSTREAM_MAX_CLOCK_SKEW_SECONDS=300
+GARDEN_BASE_URL=http://localhost:3000
+GARDEN_AUTH_TIMEOUT_SECONDS=5
+GARDEN_REQUIRE_ACTIVE_SESSION=0
 ```
 
 Admin inspection commands:
@@ -120,7 +117,7 @@ Machine-readable admin commands accept both `--json-output` and the shorter `--j
 
 In the default SN13 runtime, operator stats are also durable. `GET /v1/operators/{operator_id}/stats` is backed by canonical SN13 SQLite quality facts, not by the in-memory test helper in `workstream/stats.py`.
 
-`GET /v1/tasks` does not require an `operator_id` query parameter. When auth is enabled, identity comes from the signed headers.
+`GET /v1/tasks` does not require an `operator_id` query parameter. When auth is enabled, identity comes from Garden headers verified server-side by Workstream.
 
 ## SN13 Normal Workflow
 

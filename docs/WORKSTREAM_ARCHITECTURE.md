@@ -4,7 +4,7 @@
 
 Jarvis uses one operator workstream across all task sources and adapter types.
 
-Personal operators do not integrate separately with SN13, ERC-8183, internal campaigns, or future task packages. Operators integrate with the Jarvis workstream HTTP API. Jarvis keeps the internal task route in durable storage and sends each upload to the correct adapter after resolving `task_id`.
+Personal operators do not integrate separately with SN13, ERC-8183, internal campaigns, or future task packages. Operators integrate with the Flow Workstream HTTP API. The orchestrator keeps the internal task route in durable storage and sends each upload to the correct adapter after resolving `task_id`.
 
 ## Core Rule
 
@@ -75,7 +75,7 @@ The API remains the same because task shape is generic:
 - expiry
 - operator stats
 
-The operator-facing part lives inside `contract`. The adapter route remains internal to Jarvis.
+The operator-facing part lives inside `contract`. The adapter route remains internal to the orchestrator.
 
 ## Current Implementation
 
@@ -92,12 +92,12 @@ Implemented now:
 - `workstream/api/settings.py`
 - `subnets/sn13/workstream.py`
 - `subnets/sn13/api_adapter.py`
-- `docs/skills/jarvis-workstream/SKILL.md`
+- `docs/skills/flow-workstream/SKILL.md`
 
 Store policy:
 
 - `InMemoryWorkstream` is for tests and throwaway local development only.
-- `SQLiteWorkstream` is the durable single-node workstream store for Jarvis-controlled deployments.
+- `SQLiteWorkstream` is the durable single-node store for Flow Workstream deployments.
 - `InMemoryOperatorStats` is test-only; the default SN13 runtime reads operator stats from canonical SN13 SQLite through `SN13OperatorStatsAdapter`.
 - A distributed deployment can replace `SQLiteWorkstream` with Postgres or another durable queue without changing the workstream HTTP boundary or internal adapters.
 
@@ -112,7 +112,7 @@ The shared workstream HTTP API exposes:
 - `POST /v1/submissions`
 - `GET /v1/operators/{operator_id}/stats`
 
-`GET /` is a read-only human dashboard for runtime inspection. It does not replace the signed Workstream API.
+`GET /` is a read-only human dashboard for runtime inspection. It does not replace the Garden-authenticated Workstream API.
 
 There is no SN13-specific public API route and no public route field in operator task or submission payloads. Adapter selection is internal: Jarvis resolves `task_id` to the durable task route, then calls the matching intake adapter.
 
@@ -140,29 +140,27 @@ Optional record fields:
 - `scraped_at`
 - `provenance`
 
-Source-native payload belongs inside `records[*].content`. Top-level arbitrary record fields are not accepted. Jarvis then attaches the internal route from the durable task record and the selected adapter applies the task contract, source-specific required fields, delivery limits, acceptance window, duplicate checks, and quality gate before any data reaches canonical storage.
+Source-native payload belongs inside `records[*].content`. Top-level arbitrary record fields are not accepted. The orchestrator then attaches the internal route from the durable task record and the selected adapter applies the task contract, source-specific required fields, delivery limits, acceptance window, duplicate checks, and quality gate before any data reaches canonical storage.
 
 ## HTTP Auth
 
-The workstream HTTP API supports signed requests through `workstream/api/auth.py`.
+The workstream HTTP API uses Garden-backed identity verification through `workstream/api/auth.py`.
 
-Signed requests use these headers:
+Operator-facing requests use Garden identity headers:
 
-- `x-jarvis-operator`
-- `x-jarvis-timestamp`
-- `x-jarvis-nonce`
-- `x-jarvis-signature`
+- `x-garden-user-id`
+- `x-garden-workspace-id`
+- `x-garden-session-token` when a Garden session token is available
 
-The signature is HMAC-SHA256 over method, path/query, body hash, timestamp, and nonce. The operator ID in the signed headers must match the operator ID in submission and stats requests. Nonces are rejected on replay inside a single API process.
-
-For multi-process or distributed API deployments, replace the in-memory nonce store with a durable shared nonce store before exposing the API to untrusted operators.
+Workstream calls `{GARDEN_BASE_URL}/api/internal/auth/verify` with `GARDEN_SERVICE_AUTH_TOKEN` and authorizes the request only when Garden returns `ok: true`. Workstream derives the operator id from the verified Garden user id; it does not issue or preload Workstream operator secrets.
 
 ## Admin Runtime
 
-Jarvis administrators can serve the workstream HTTP boundary with:
+Internal administrators can serve the workstream HTTP boundary with:
 
 ```bash
-JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON='{"operator_1":"<shared-secret>"}' \
+GARDEN_BASE_URL=http://localhost:3000 \
+GARDEN_SERVICE_AUTH_TOKEN='<garden-service-token>' \
 jarvis-miner workstream serve
 ```
 
@@ -171,15 +169,15 @@ Default durable stores:
 - `JARVIS_WORKSTREAM_DB_PATH=data/workstream.sqlite3`
 - `JARVIS_SN13_DB_PATH=subnets/sn13/data/sn13.sqlite3`
 
-`JARVIS_WORKSTREAM_OPERATOR_SECRETS_JSON` is the server-side allowlist of personal operators that may call the workstream API. The effective operator count is the number of entries in that map. This is not a scraper credential and not a Bittensor wallet.
+`GARDEN_BASE_URL` is the Garden deployment Workstream verifies against. For local development this is usually `http://localhost:3000`; for production it is the Garden domain.
 
 Task discovery is:
 
 - `GET /v1/tasks`
 
-There is no required `operator_id` query parameter on task listing. If auth is enabled, the workstream API derives identity from the signed headers.
+There is no required `operator_id` query parameter on task listing. If auth is enabled, the workstream API derives identity from verified Garden headers.
 
-Jarvis administrators publish SN13 tasks into the durable workstream with:
+Internal administrators publish SN13 tasks into the durable workstream with:
 
 ```bash
 jarvis-miner sn13 plan publish --json-output
@@ -190,9 +188,9 @@ This keeps planning and publication separate:
 - `sn13 plan tasks` shows intended work.
 - `sn13 plan publish` writes stable task contracts into `SQLiteWorkstream`.
 
-Published tasks are open for competitive submission. The normal SN13 flow is open publication, not per-operator reservation. Operators discover the same open tasks through the API, then submit results directly against the published contract. Jarvis closes the task when the accepted-cap is reached or the task expires.
+Published tasks are open for competitive submission. The normal SN13 flow is open publication, not per-operator reservation. Operators discover the same open tasks through the API, then submit results directly against the published contract. Flow Workstream closes the task when the accepted-cap is reached or the task expires.
 
-Jarvis administrators inspect the runtime with:
+Internal administrators inspect the runtime with:
 
 ```bash
 jarvis-miner workstream status --json-output
@@ -208,7 +206,7 @@ This keeps the control surface simple:
 
 ## Operator Guide
 
-The publishable operator instructions live in [Official Workstream Operator Skill](skills/jarvis-workstream/SKILL.md).
+The publishable operator instructions live in [Official Workstream Operator Skill](skills/flow-workstream/SKILL.md).
 
 That guide is external-facing. It tells any personal operator agent:
 
@@ -219,7 +217,7 @@ That guide is external-facing. It tells any personal operator agent:
 - how to upload records to `/v1/submissions`
 - how to check operator stats
 
-Internal project-local skills under `.agents/skills/` are reserved for Jarvis development and QA workflows.
+Internal project-local skills under `.agents/skills/` are reserved for internal development and QA workflows.
 
 ## Production Gaps
 
@@ -228,4 +226,3 @@ Before real operators use this:
 - add task visibility rules by capability
 - add persistent accounting ledger
 - add rate limits and payload size limits at API edge
-- replace in-memory nonce replay protection for distributed deployments

@@ -1,4 +1,4 @@
-"""FastAPI app exposing the Jarvis workstream HTTP boundary."""
+"""FastAPI app exposing the Flow Workstream HTTP boundary."""
 
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def _render_dashboard_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Jarvis Workstream</title>
+  <title>Flow Workstream</title>
   <style>
     :root {{
       color-scheme: light;
@@ -551,11 +551,11 @@ def _render_dashboard_html(
     <section class="hero-shell">
       <section class="hero">
         <div>
-          <div class="eyebrow">Jarvis Orchestrator</div>
-          <h1>Workstream Runtime</h1>
+          <div class="eyebrow">Flow Workstream</div>
+          <h1>Runtime</h1>
           <div class="sub">
-            Human-readable runtime view for the Jarvis workstream.
-            Personal operators still use the signed HTTP API for task
+            Human-readable runtime view for the Flow Workstream.
+            Personal operators use the Garden-authenticated HTTP API for task
             discovery and submission.
           </div>
           <div class="live-pill">
@@ -576,7 +576,7 @@ def _render_dashboard_html(
           <section class="rail-card">
             <div class="rail-title">Operating Rule</div>
             <div class="rail-copy">
-              Jarvis publishes work. Operators compete on the same open tasks.
+              Flow Workstream publishes work. Operators compete on the same open tasks.
               Intake decides what becomes canonical miner truth.
             </div>
           </section>
@@ -612,7 +612,7 @@ def _render_dashboard_html(
           <h2 class="panel-title">Open Demand Surface</h2>
           <div class="panel-copy">
             The dashboard is read-only. It shows the runtime state humans
-            need to inspect while operators continue to use the signed API.
+            need to inspect while operators continue to use the Garden-authenticated API.
           </div>
         </div>
         <div class="task-grid" data-task-grid>
@@ -637,8 +637,8 @@ def _render_dashboard_html(
         </div>
         <div class="side-stack">
           <section class="hint">
-            This page does not accept uploads and it does not bypass signed
-            operator requests.
+            This page does not accept uploads and it does not bypass Garden
+            identity verification.
           </section>
           <section class="info-card">
             <h3 class="info-title">Human Checks</h3>
@@ -670,7 +670,7 @@ def _render_dashboard_html(
             </div>
           </section>
           <div class="footer">
-            Use the signed API for operator work. This page is for human
+            Use the Garden-authenticated API for operator work. This page is for human
             runtime inspection only.
           </div>
         </div>
@@ -759,7 +759,7 @@ def create_workstream_app(
 ) -> FastAPI:
     """Create the workstream API without coupling it to an adapter implementation."""
     app = FastAPI(
-        title="Jarvis Workstream API",
+        title="Flow Workstream API",
         version="1.0.0",
         description=(
             "Personal operators use this API to discover open workstream tasks, "
@@ -782,7 +782,7 @@ def create_workstream_app(
         if identity is not None and identity.operator_id != operator_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="authenticated operator does not match request operator",
+                detail="authenticated Garden user does not match requested operator",
             )
 
     @app.get("/health")
@@ -843,20 +843,32 @@ def create_workstream_app(
         request: OperatorSubmissionRequest,
         identity: OperatorIdentity | None = Depends(authenticate),
     ) -> OperatorSubmissionReceipt:
-        enforce_operator(identity, request.operator_id)
+        resolved_operator_id = request.operator_id
+        if identity is not None:
+            if resolved_operator_id is not None:
+                enforce_operator(identity, resolved_operator_id)
+            resolved_operator_id = identity.operator_id
+        if resolved_operator_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="operator_id is required when Workstream auth is disabled",
+            )
         task = workstream.get(request.task_id)
         if task is None:
             return OperatorSubmissionReceipt(
                 submission_id=request.submission_id,
                 task_id=request.task_id,
-                operator_id=request.operator_id,
+                operator_id=resolved_operator_id,
                 accepted_count=0,
                 rejected_count=len(request.records),
                 duplicate_count=0,
                 status="rejected",
                 reasons=["task_not_found"],
             )
-        envelope = request.to_internal_envelope(route_key=task.route_key)
+        envelope = request.to_internal_envelope(
+            route_key=task.route_key,
+            operator_id=resolved_operator_id,
+        )
         return intake.submit(envelope)
 
     @app.get("/v1/operators/{operator_id}/stats", response_model=OperatorStats)
